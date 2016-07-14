@@ -17,13 +17,15 @@ from tensorflow.python.training import queue_runner
 from tensorflow.python.ops import random_ops
 
 
+
 def read_labeled_image_list(path):
-    """Reads input images from file system. Create a folder for each label and put 
-       all images with this label into the sub folder:
+    """Reads images and labels from file system. Create a folder for each label and put 
+       all images with this label into the sub folder (you don't need a label.txt etc.)
+       Note: Images can be downloaded with datr - https://github.com/peerdavid/datr
     Args:
-      path: Folder where the label folders can be found
+      path: Folder, which contains labels (folders) with images.
     Returns:
-      List with all filenames in file image_list_file
+      List with all filenames and list with all labels
     """
     filenames = []
     labels = []
@@ -37,6 +39,7 @@ def read_labeled_image_list(path):
     assert len(filenames) == len(labels)
     return filenames, labels
   
+
 
 def read_images_from_disk(input_queue):
     """Consumes a single filename and label as a ' '-delimited string.
@@ -68,8 +71,16 @@ if __name__ == '__main__':
         input_queue = tf.train.slice_input_producer([images, labels],
                                                     shuffle=True)
 
-        with tf.Session() as sess:
-            result = sess.run(input_queue)
+        # Process image
+        image, label = read_images_from_disk(input_queue)
+        #pr_image = processing_image(image)
+        #pr_label = processing_label(label)
+
+        batch_size = 128
+        image_batch, label_batch = tf.train.batch([image, label], batch_size=batch_size)
+                                              
+        #with tf.Session() as sess:
+        #    result = sess.run(input_queue)
             
     except:
         traceback.print_exc()
