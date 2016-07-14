@@ -17,6 +17,10 @@ from tensorflow.python.training import queue_runner
 from tensorflow.python.ops import random_ops
 
 
+NUM_CLASSES = 10
+NUM_EXAMPLES_PER_EPOCH_FOR_TRAIN = 50000
+NUM_EXAMPLES_PER_EPOCH_FOR_EVAL = 10000
+
 
 def read_labeled_image_list(path):
     """Reads images and labels from file system. Create a folder for each label and put 
@@ -71,14 +75,41 @@ if __name__ == '__main__':
         input_queue = tf.train.slice_input_producer([images, labels],
                                                     shuffle=True)
 
-        # Process image
         image, label = read_images_from_disk(input_queue)
-        #pr_image = processing_image(image)
-        #pr_label = processing_label(label)
 
+        # Randomly crop a [height, width] section of the image.
+        height = 100 
+        width = 120
+        distorted_image = tf.random_crop(image, [height, width, 3])
+        
+        # Image processing for evaluation.
+        # Crop the central [height, width] of the image.
+        resized_image = tf.image.resize_image_with_crop_or_pad(distorted_image, width, height)
+
+        # Subtract off the mean and divide by the variance of the pixels.
+        float_image = tf.image.per_image_whitening(resized_image)
+
+        # Ensure that the random shuffling has good mixing properties.
         batch_size = 128
-        image_batch, label_batch = tf.train.batch([image, label], batch_size=batch_size)
-                                              
+        num_preprocess_threads = 16
+        min_fraction_of_examples_in_queue = 0.4
+        min_queue_examples = int(NUM_EXAMPLES_PER_EPOCH_FOR_TRAIN *
+                                min_fraction_of_examples_in_queue)
+                                
+        image_batch, label_batch = tf.train.shuffle_batch(
+            [float_image, label], 
+            num_threads = num_preprocess_threads,
+            capacity=min_queue_examples + 3 * batch_size,
+            min_after_dequeue=min_queue_examples,
+            batch_size=batch_size)
+                                               
+        # Display the training images in the visualizer.
+        tf.image_summary('images', image_batch)
+        
+        ret1 = image_batch
+        ret2 = tf.reshape(label_batch, [batch_size])
+         
+         
         #with tf.Session() as sess:
         #    result = sess.run(input_queue)
             
@@ -86,5 +117,5 @@ if __name__ == '__main__':
         traceback.print_exc()
 
     finally:
-        print("Done.")
+        print("\nDone.\n")
 
