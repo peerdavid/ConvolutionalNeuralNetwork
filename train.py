@@ -11,25 +11,41 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import gzip
-import sys
-import tarfile
-from six.moves import urllib
-
 
 import os
-import re
+import math
 import traceback
+import time
+from six.moves import xrange  # pylint: disable=redefined-builtin
 import tensorflow as tf
 from tensorflow.python.framework import ops
 from tensorflow.python.framework import dtypes
-from tensorflow.python.training import queue_runner
-from tensorflow.python.ops import random_ops
 
 
+# The MNIST dataset has 10 classes, representing the digits 0 through 9.
 NUM_CLASSES = 3
+
+# The MNIST images are always 28x28 pixels.
+IMAGE_SIZE = 28
+IMAGE_PIXELS = IMAGE_SIZE * IMAGE_SIZE
+
 NUM_EXAMPLES_PER_EPOCH_FOR_TRAIN = 50000
 NUM_EXAMPLES_PER_EPOCH_FOR_EVAL = 10000
+
+
+# Basic model parameters as external flags.
+flags = tf.app.flags
+FLAGS = flags.FLAGS
+flags.DEFINE_float('learning_rate', 0.01, 'Initial learning rate.')
+flags.DEFINE_integer('max_steps', 2000, 'Number of steps to run trainer.')
+flags.DEFINE_integer('hidden1', 128, 'Number of units in hidden layer 1.')
+flags.DEFINE_integer('hidden2', 32, 'Number of units in hidden layer 2.')
+flags.DEFINE_integer('batch_size', 100, 'Batch size.  '
+                     'Must divide evenly into the dataset sizes.')
+flags.DEFINE_string('train_dir', 'data', 'Directory to put the training data.')
+flags.DEFINE_boolean('fake_data', False, 'If true, uses fake data '
+                     'for unit testing.')             
+
 
 
 # If a model is trained with multiple GPUs, prefix all Op names with tower_name
@@ -72,68 +88,44 @@ def read_images_from_disk(input_queue):
     example = tf.image.decode_png(file_contents, channels=3)
     return example, label 
 
-#
-# Create some wrappers for simplicity
-#
-def conv2d(x, W, b, strides=1):
-    # Conv2D wrapper, with bias and relu activation
-    x = tf.nn.conv2d(x, W, strides=[1, strides, strides, 1], padding='SAME')
-    x = tf.nn.bias_add(x, b)
-    return tf.nn.relu(x)
 
-
-def maxpool2d(x, k=2):
-    # MaxPool2D wrapper
-    return tf.nn.max_pool(x, ksize=[1, k, k, 1], strides=[1, k, k, 1],
-                          padding='SAME')
-
-
-# Create model
-def inference(x, weights, biases, dropout):
-    # Reshape input picture
-    #x = tf.reshape(x, shape=[-1, 28, 28, 1])
-
-    # Convolution Layer
-    conv1 = conv2d(x, weights['wc1'], biases['bc1'])
-    # Max Pooling (down-sampling)
-    conv1 = maxpool2d(conv1, k=2)
-
-    # Convolution Layer
-    conv2 = conv2d(conv1, weights['wc2'], biases['bc2'])
-    # Max Pooling (down-sampling)
-    conv2 = maxpool2d(conv2, k=2)
-
-    # Fully connected layer
-    # Reshape conv2 output to fit fully connected layer input
-    fc1 = tf.reshape(conv2, [-1, weights['wd1'].get_shape().as_list()[0]])
-    fc1 = tf.add(tf.matmul(fc1, weights['wd1']), biases['bd1'])
-    fc1 = tf.nn.relu(fc1)
-    # Apply Dropout
-    fc1 = tf.nn.dropout(fc1, dropout)
-
-    # Output, class prediction
-    out = tf.add(tf.matmul(fc1, weights['out']), biases['out'])
-    return out
-    
-    # https://github.com/aymericdamien/TensorFlow-Examples/blob/master/examples/3_NeuralNetworks/convolutional_network.py
- # Store layers weight & bias
-weights = {
-    # 5x5 conv, 1 input, 32 outputs
-    'wc1': tf.Variable(tf.random_normal([5, 5, 3, 32])),
-    # 5x5 conv, 32 inputs, 64 outputs
-    'wc2': tf.Variable(tf.random_normal([5, 5, 32, 64])),
-    # fully connected, 7*7*64 inputs, 1024 outputs
-    'wd1': tf.Variable(tf.random_normal([7*7*64, 1024])),
-    # 1024 inputs, 10 outputs (class prediction)
-    'out': tf.Variable(tf.random_normal([1024, NUM_CLASSES]))
-}
-
-biases = {
-    'bc1': tf.Variable(tf.random_normal([32])),
-    'bc2': tf.Variable(tf.random_normal([64])),
-    'bd1': tf.Variable(tf.random_normal([1024])),
-    'out': tf.Variable(tf.random_normal([NUM_CLASSES]))
-}
+def inference(images, hidden1_units, hidden2_units):
+    """Build the MNIST model up to where it may be used for inference.
+    Args:
+        images: Images placeholder, from inputs().
+        hidden1_units: Size of the first hidden layer.
+        hidden2_units: Size of the second hidden layer.
+    Returns:
+        softmax_linear: Output tensor with the computed logits.
+    """
+    # Hidden 1
+    with tf.name_scope('hidden1'):
+        weights = tf.Variable(
+            tf.truncated_normal([IMAGE_PIXELS, hidden1_units],
+                                stddev=1.0 / math.sqrt(float(IMAGE_PIXELS))),
+            name='weights')
+        biases = tf.Variable(tf.zeros([hidden1_units]),
+                            name='biases')
+        hidden1 = tf.nn.relu(tf.matmul(images, weights) + biases)
+    # Hidden 2
+    with tf.name_scope('hidden2'):
+        weights = tf.Variable(
+            tf.truncated_normal([hidden1_units, hidden2_units],
+                                stddev=1.0 / math.sqrt(float(hidden1_units))),
+            name='weights')
+        biases = tf.Variable(tf.zeros([hidden2_units]),
+                            name='biases')
+        hidden2 = tf.nn.relu(tf.matmul(hidden1, weights) + biases)
+    # Linear
+    with tf.name_scope('softmax_linear'):
+        weights = tf.Variable(
+            tf.truncated_normal([hidden2_units, NUM_CLASSES],
+                                stddev=1.0 / math.sqrt(float(hidden2_units))),
+            name='weights')
+        biases = tf.Variable(tf.zeros([NUM_CLASSES]),
+                            name='biases')
+        logits = tf.matmul(hidden2, weights) + biases
+    return logits
    
    
    
@@ -174,9 +166,71 @@ def training(loss, learning_rate):
     # (and also increment the global step counter) as a single training step.
     train_op = optimizer.minimize(loss, global_step=global_step)
     return train_op
+
+
+def evaluation(logits, labels):
+    """Evaluate the quality of the logits at predicting the label.
+    Args:
+        logits: Logits tensor, float - [batch_size, NUM_CLASSES].
+        labels: Labels tensor, int32 - [batch_size], with values in the
+        range [0, NUM_CLASSES).
+    Returns:
+        A scalar int32 tensor with the number of examples (out of batch_size)
+        that were predicted correctly.
+    """
+    # For a classifier model, we can use the in_top_k Op.
+    # It returns a bool tensor with shape [batch_size] that is true for
+    # the examples where the label is in the top k (here k=1)
+    # of all logits for that example.
+    correct = tf.nn.in_top_k(logits, labels, 1)
+    # Return the number of true entries.
+    return tf.reduce_sum(tf.cast(correct, tf.int32))
   
   
-# https://github.com/tensorflow/tensorflow/blob/r0.9/tensorflow/examples/tutorials/mnist/fully_connected_feed.py
+def placeholder_inputs(batch_size):
+    """Generate placeholder variables to represent the input tensors.
+    These placeholders are used as inputs by the rest of the model building
+    code and will be fed from the downloaded data in the .run() loop, below.
+    Args:
+        batch_size: The batch size will be baked into both placeholders.
+    Returns:
+        images_placeholder: Images placeholder.
+        labels_placeholder: Labels placeholder.
+    """
+    # Note that the shapes of the placeholders match the shapes of the full
+    # image and label tensors, except the first dimension is now batch_size
+    # rather than the full size of the train or test data sets.
+    images_placeholder = tf.placeholder(tf.float32, shape=(batch_size, IMAGE_PIXELS))
+    labels_placeholder = tf.placeholder(tf.int32, shape=(batch_size))
+    return images_placeholder, labels_placeholder
+  
+  
+def fill_feed_dict(data_set, images_pl, labels_pl):
+    """Fills the feed_dict for training the given step.
+    A feed_dict takes the form of:
+    feed_dict = {
+        <placeholder>: <tensor of values to be passed for placeholder>,
+        ....
+    }
+    Args:
+        data_set: The set of images and labels, from input_data.read_data_sets()
+        images_pl: The images placeholder, from placeholder_inputs().
+        labels_pl: The labels placeholder, from placeholder_inputs().
+    Returns:
+        feed_dict: The feed dictionary mapping from placeholders to values.
+    """
+    # Create the feed_dict for the placeholders filled with the next
+    # `batch size ` examples.
+    images_feed, labels_feed = data_set.next_batch(FLAGS.batch_size,
+                                                    FLAGS.fake_data)
+    feed_dict = {
+        images_pl: images_feed,
+        labels_pl: labels_feed,
+    }
+    return feed_dict
+  
+  
+
 #
 # M A I N
 #
@@ -195,19 +249,16 @@ if __name__ == '__main__':
         image, label = read_images_from_disk(input_queue)
 
         # Randomly crop a [height, width] section of the image.
-        height = 28 
-        width = 28
-        distorted_image = tf.random_crop(image, [height, width, 3])
+        distorted_image = tf.random_crop(image, [IMAGE_SIZE, IMAGE_SIZE, 3])
         
         # Image processing for evaluation.
         # Crop the central [height, width] of the image.
-        resized_image = tf.image.resize_image_with_crop_or_pad(distorted_image, width, height)
+        resized_image = tf.image.resize_image_with_crop_or_pad(distorted_image, IMAGE_SIZE, IMAGE_SIZE)
 
         # Subtract off the mean and divide by the variance of the pixels.
         float_image = tf.image.per_image_whitening(resized_image)
 
         # Ensure that the random shuffling has good mixing properties.
-        batch_size = 128
         num_preprocess_threads = 16
         min_fraction_of_examples_in_queue = 0.4
         min_queue_examples = int(NUM_EXAMPLES_PER_EPOCH_FOR_TRAIN *
@@ -216,30 +267,77 @@ if __name__ == '__main__':
         image_batch, label_batch = tf.train.shuffle_batch(
             [float_image, label], 
             num_threads = num_preprocess_threads,
-            capacity=min_queue_examples + 3 * batch_size,
+            capacity=min_queue_examples + 3 * FLAGS.batch_size,
             min_after_dequeue=min_queue_examples,
-            batch_size=batch_size)
+            batch_size=FLAGS.batch_size)
                                                
         # Display the training images in the visualizer.
         tf.image_summary('images', image_batch)
         
         images = image_batch
-        labels = tf.reshape(label_batch, [batch_size])
+        labels = tf.reshape(label_batch, [FLAGS.batch_size])
         
         
-        #
-        # Construct model
-        #
-        # Parameters
-        learning_rate = 0.001
-        training_iters = 200000
-        display_step = 10
+        # https://github.com/tensorflow/tensorflow/blob/r0.9/tensorflow/examples/tutorials/mnist/fully_connected_feed.py
+        # Tell TensorFlow that the model will be built into the default Graph.
+        with tf.Graph().as_default():
+            # Generate placeholders for the images and labels.
+            images_placeholder, labels_placeholder = placeholder_inputs(
+                FLAGS.batch_size)
 
-        keep_prob = tf.placeholder(tf.float32) #dropout (keep probability)
-        logits = inference(images, weights, biases, keep_prob)
-        loss = loss(logits, labels)
-        training = training(loss, learning_rate)
+            # Build a Graph that computes predictions from the inference model.
+            logits = inference(images_placeholder,
+                                    FLAGS.hidden1,
+                                    FLAGS.hidden2)
 
+            # Add to the Graph the Ops for loss calculation.
+            loss = loss(logits, labels_placeholder)
+
+            # Add to the Graph the Ops that calculate and apply gradients.
+            train_op = training(loss, FLAGS.learning_rate)
+
+            # Add the Op to compare the logits to the labels during evaluation.
+            eval_correct = evaluation(logits, labels_placeholder)
+
+            # Build the summary operation based on the TF collection of Summaries.
+            summary_op = tf.merge_all_summaries()
+
+            # Add the variable initializer Op.
+            init = tf.initialize_all_variables()
+
+            # Create a saver for writing training checkpoints.
+            saver = tf.train.Saver()
+
+            # Create a session for running Ops on the Graph.
+            sess = tf.Session()
+
+            # Instantiate a SummaryWriter to output summaries and the Graph.
+            summary_writer = tf.train.SummaryWriter(FLAGS.train_dir, sess.graph)
+
+            # And then after everything is built:
+
+            # Run the Op to initialize the variables.
+            sess.run(init)
+
+            # Start the training loop.
+            for step in xrange(FLAGS.max_steps):
+                start_time = time.time()
+      
+                # Fill a feed dictionary with the actual set of images and labels
+                # for this particular training step.
+                feed_dict = fill_feed_dict(data_sets.train,
+                                            images_placeholder,
+                                            labels_placeholder)
+
+                # Run one step of the model.  The return values are the activations
+                # from the `train_op` (which is discarded) and the `loss` Op.  To
+                # inspect the values of your Ops or variables, you may include them
+                # in the list passed to sess.run() and the value tensors will be
+                # returned in the tuple from the call.
+                _, loss_value = sess.run([train_op, loss],
+                                        feed_dict=feed_dict)
+
+                duration = time.time() - start_time
 
     except:
         traceback.print_exc()
