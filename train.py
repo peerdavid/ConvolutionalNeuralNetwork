@@ -28,7 +28,7 @@ from tensorflow.python.framework import dtypes
 NUM_CLASSES = 3
 
 # The MNIST images are always 28x28 pixels.
-IMAGE_SIZE = 28
+IMAGE_SIZE = 62
 IMAGE_PIXELS = IMAGE_SIZE * IMAGE_SIZE
 
 NUM_EXAMPLES_PER_EPOCH_FOR_TRAIN = 50000
@@ -42,7 +42,7 @@ flags.DEFINE_float('learning_rate', 0.01, 'Initial learning rate.')
 flags.DEFINE_integer('max_steps', 2000, 'Number of steps to run trainer.')
 flags.DEFINE_integer('batch_size', 128, 'Batch size.  '
                      'Must divide evenly into the dataset sizes.')
-flags.DEFINE_string('train_dir', 'data', 'Directory to put the training data.')
+flags.DEFINE_string('train_dir', 'log_dir', 'Directory to put the log data.')
 flags.DEFINE_boolean('fake_data', False, 'If true, uses fake data '
                      'for unit testing.')             
 
@@ -344,6 +344,13 @@ def fill_feed_dict(data_set, images_pl, labels_pl):
 #
 if __name__ == '__main__':
     try:
+        
+        # Create log dir if not exists
+        if tf.gfile.Exists(FLAGS.train_dir):
+            tf.gfile.DeleteRecursively(FLAGS.train_dir)
+        tf.gfile.MakeDirs(FLAGS.train_dir)
+  
+  
         # https://github.com/tensorflow/tensorflow/blob/r0.9/tensorflow/examples/tutorials/mnist/fully_connected_feed.py
         # Tell TensorFlow that the model will be built into the default Graph.
         with tf.Graph().as_default():
@@ -445,6 +452,15 @@ if __name__ == '__main__':
                                 'sec/batch)')
                     print (format_str % (datetime.now(), step, loss_value,
                                         examples_per_sec, sec_per_batch))
+                                        
+                if step % 100 == 0:
+                    summary_str = sess.run(summary_op)
+                    summary_writer.add_summary(summary_str, step)
+
+                # Save the model checkpoint periodically.
+                if step % 1000 == 0 or (step + 1) == FLAGS.max_steps:
+                    checkpoint_path = os.path.join(FLAGS.train_dir, 'model.ckpt')
+                    saver.save(sess, checkpoint_path, global_step=step)
 
     except:
         traceback.print_exc()
