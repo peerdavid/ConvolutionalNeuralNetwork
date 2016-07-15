@@ -18,6 +18,7 @@ import traceback
 import time
 from datetime import datetime
 import re
+import input
 from six.moves import xrange  # pylint: disable=redefined-builtin
 import tensorflow as tf
 from tensorflow.python.framework import ops
@@ -40,55 +41,17 @@ flags = tf.app.flags
 FLAGS = flags.FLAGS
 flags.DEFINE_float('learning_rate', 0.01, 'Initial learning rate.')
 flags.DEFINE_integer('max_steps', 2000, 'Number of steps to run trainer.')
-flags.DEFINE_integer('batch_size', 128, 'Batch size.  '
-                     'Must divide evenly into the dataset sizes.')
-flags.DEFINE_string('train_dir', 'log_dir', 'Directory to put the log data.')
+flags.DEFINE_integer('batch_size', 128, 'Batch size. Must divide evenly into the dataset sizes.')
+flags.DEFINE_string('log_dir', 'log_dir', 'Directory to put the log data.')
+flags.DEFINE_string('img_dir', 'data/', 'Directory of images.')
 flags.DEFINE_boolean('fake_data', False, 'If true, uses fake data '
                      'for unit testing.')             
-
 
 
 # If a model is trained with multiple GPUs, prefix all Op names with tower_name
 # to differentiate the operations. Note that this prefix is removed from the
 # names of the summaries when visualizing a model.
 TOWER_NAME = 'tower'
-
-def read_labeled_image_list(path):
-    """Reads images and labels from file system. Create a folder for each label and put 
-       all images with this label into the sub folder (you don't need a label.txt etc.)
-       Note: Images can be downloaded with datr - https://github.com/peerdavid/datr
-    Args:
-      path: Folder, which contains labels (folders) with images.
-    Returns:
-      List with all filenames and list with all labels
-    """
-    filenames = []
-    labels = []
-    label_dirs = [dir for dir in os.listdir(path) if os.path.isdir(os.path.join(path, dir))]
-    for label in label_dirs:
-        subdir = path + label
-        for image in os.listdir(subdir):
-            filenames.append("{0}/{1}".format(subdir, image))
-            labels.append(int(label))
-    
-    assert len(filenames) == len(labels)
-    return filenames, labels
-  
-
-
-def read_images_from_disk(input_queue):
-    """Consumes a single filename and label as a ' '-delimited string.
-    Args:
-      filename_and_label_tensor: A scalar string tensor.
-    Returns:
-      Two tensors: the decoded image, and the string label.
-    """
-    label = input_queue[1]
-    file_contents = tf.read_file(input_queue[0])
-    decoded = tf.image.decode_jpeg(file_contents, channels=3)
-    decoded.set_shape([IMAGE_SIZE, IMAGE_SIZE, 3])
-    return decoded, label 
-
 
 def _activation_summary(x):
     """Helper to create summaries for activations.
@@ -346,57 +309,19 @@ if __name__ == '__main__':
     try:
         
         # Create log dir if not exists
-        if tf.gfile.Exists(FLAGS.train_dir):
-            tf.gfile.DeleteRecursively(FLAGS.train_dir)
-        tf.gfile.MakeDirs(FLAGS.train_dir)
+        if tf.gfile.Exists(FLAGS.log_dir):
+            tf.gfile.DeleteRecursively(FLAGS.log_dir)
+        tf.gfile.MakeDirs(FLAGS.log_dir)
   
   
         # https://github.com/tensorflow/tensorflow/blob/r0.9/tensorflow/examples/tutorials/mnist/fully_connected_feed.py
         # Tell TensorFlow that the model will be built into the default Graph.
         with tf.Graph().as_default():
-            # Reads pfathes of images together with their labels
-            image_list, label_list = read_labeled_image_list("data/")
-
-            tf_images = ops.convert_to_tensor(image_list, dtype=dtypes.string)
-            tf_labels = ops.convert_to_tensor(label_list, dtype=dtypes.int32)
-
-            # Makes an input queue
-            input_queue = tf.train.slice_input_producer([tf_images, tf_labels],
-                                                        shuffle=True)
-
-            image, label = read_images_from_disk(input_queue)
-
-            reshaped_image = tf.cast(image, tf.float32)
-
-            # Randomly crop a [height, width] section of the image.
-            #distorted_image = tf.random_crop(reshaped_image, [IMAGE_SIZE, IMAGE_SIZE, 3])
+            images, labels = input.read_labeled_image_batches(FLAGS)
             
-            # Image processing for evaluation.
-            # Crop the central [height, width] of the image.
-            resized_image = tf.image.resize_image_with_crop_or_pad(reshaped_image, IMAGE_SIZE, IMAGE_SIZE)
-
-            # Subtract off the mean and divide by the variance of the pixels.
-            float_image = tf.image.per_image_whitening(resized_image)
-
-            # Ensure that the random shuffling has good mixing properties.
-            num_preprocess_threads = 16
-            min_fraction_of_examples_in_queue = 0.4
-            min_queue_examples = int(NUM_EXAMPLES_PER_EPOCH_FOR_TRAIN *
-                                    min_fraction_of_examples_in_queue)
-                                    
-            image_batch, label_batch = tf.train.shuffle_batch(
-                [float_image, label], 
-                num_threads = num_preprocess_threads,
-                capacity=min_queue_examples + 3 * FLAGS.batch_size,
-                min_after_dequeue=min_queue_examples,
-                batch_size=FLAGS.batch_size)
-                                                
             # Display the training images in the visualizer.
-            tf.image_summary('images', image_batch)
-            
-            images = image_batch
-            labels = tf.reshape(label_batch, [FLAGS.batch_size])
-        
+            tf.image_summary('images', images)
+           
        
             # Generate placeholders for the images and labels.
             #images_placeholder, labels_placeholder = placeholder_inputs(
@@ -427,7 +352,7 @@ if __name__ == '__main__':
             sess = tf.Session()
 
             # Instantiate a SummaryWriter to output summaries and the Graph.
-            summary_writer = tf.train.SummaryWriter(FLAGS.train_dir, sess.graph)
+            summary_writer = tf.train.SummaryWriter(FLAGS.log_dir, sess.graph)
 
             # And then after everything is built:
 
@@ -459,7 +384,7 @@ if __name__ == '__main__':
 
                 # Save the model checkpoint periodically.
                 if step % 1000 == 0 or (step + 1) == FLAGS.max_steps:
-                    checkpoint_path = os.path.join(FLAGS.train_dir, 'model.ckpt')
+                    checkpoint_path = os.path.join(FLAGS.log_dir, 'model.ckpt')
                     saver.save(sess, checkpoint_path, global_step=step)
 
     except:
