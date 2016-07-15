@@ -5,17 +5,6 @@ from tensorflow.python.framework import ops
 from tensorflow.python.framework import dtypes
 
 
-# The MNIST dataset has 10 classes, representing the digits 0 through 9.
-NUM_CLASSES = 3
-
-# The MNIST images are always 28x28 pixels.
-IMAGE_SIZE = 62
-IMAGE_PIXELS = IMAGE_SIZE * IMAGE_SIZE
-
-NUM_EXAMPLES_PER_EPOCH_FOR_TRAIN = 50000
-NUM_EXAMPLES_PER_EPOCH_FOR_EVAL = 10000
-
-
 def read_labeled_image_batches(FLAGS):
     # Reads pfathes of images together with their labels
     image_list, label_list = _read_labeled_image_list(FLAGS.img_dir)
@@ -27,14 +16,14 @@ def read_labeled_image_batches(FLAGS):
     input_queue = tf.train.slice_input_producer([tf_images, tf_labels],
                                                 shuffle=True)
 
-    image, label = _read_images_from_disk(input_queue)
+    image, label = _read_images_from_disk(input_queue, FLAGS)
 
-    float_image = _process_image(image)
+    float_image = _process_image(image, FLAGS)
 
     # Ensure that the random shuffling has good mixing properties.
     num_preprocess_threads = 16
     min_fraction_of_examples_in_queue = 0.4
-    min_queue_examples = int(NUM_EXAMPLES_PER_EPOCH_FOR_TRAIN *
+    min_queue_examples = int(FLAGS.num_examples_per_epoch_for_train *
                             min_fraction_of_examples_in_queue)
                             
     image_batch, label_batch = tf.train.shuffle_batch(
@@ -70,7 +59,7 @@ def _read_labeled_image_list(path):
   
 
 
-def _read_images_from_disk(input_queue):
+def _read_images_from_disk(input_queue, FLAGS):
     """Consumes a single filename and label as a ' '-delimited string.
     Args:
       filename_and_label_tensor: A scalar string tensor.
@@ -80,11 +69,11 @@ def _read_images_from_disk(input_queue):
     label = input_queue[1]
     file_contents = tf.read_file(input_queue[0])
     decoded = tf.image.decode_jpeg(file_contents, channels=3)
-    decoded.set_shape([IMAGE_SIZE, IMAGE_SIZE, 3])
+    decoded.set_shape([FLAGS.image_size, FLAGS.image_size, 3])
     return decoded, label 
 
 
-def _process_image(image):
+def _process_image(image, FLAGS):
     reshaped_image = tf.cast(image, tf.float32)
 
     # Randomly crop a [height, width] section of the image.
@@ -92,7 +81,7 @@ def _process_image(image):
 
     # Image processing for evaluation.
     # Crop the central [height, width] of the image.
-    resized_image = tf.image.resize_image_with_crop_or_pad(reshaped_image, IMAGE_SIZE, IMAGE_SIZE)
+    resized_image = tf.image.resize_image_with_crop_or_pad(reshaped_image, FLAGS.image_size, FLAGS.image_size)
 
     # Subtract off the mean and divide by the variance of the pixels.
     float_image = tf.image.per_image_whitening(resized_image)

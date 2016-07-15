@@ -25,17 +25,6 @@ from tensorflow.python.framework import ops
 from tensorflow.python.framework import dtypes
 
 
-# The MNIST dataset has 10 classes, representing the digits 0 through 9.
-NUM_CLASSES = 3
-
-# The MNIST images are always 28x28 pixels.
-IMAGE_SIZE = 62
-IMAGE_PIXELS = IMAGE_SIZE * IMAGE_SIZE
-
-NUM_EXAMPLES_PER_EPOCH_FOR_TRAIN = 50000
-NUM_EXAMPLES_PER_EPOCH_FOR_EVAL = 10000
-
-
 # Basic model parameters as external flags.
 flags = tf.app.flags
 FLAGS = flags.FLAGS
@@ -44,8 +33,12 @@ flags.DEFINE_integer('max_steps', 2000, 'Number of steps to run trainer.')
 flags.DEFINE_integer('batch_size', 128, 'Batch size. Must divide evenly into the dataset sizes.')
 flags.DEFINE_string('log_dir', 'log_dir', 'Directory to put the log data.')
 flags.DEFINE_string('img_dir', 'data/', 'Directory of images.')
-flags.DEFINE_boolean('fake_data', False, 'If true, uses fake data '
-                     'for unit testing.')             
+flags.DEFINE_boolean('fake_data', False, 'If true, uses fake data for unit testing.')             
+flags.DEFINE_integer('num_examples_per_epoch_for_train', 10000, 'Number of examples per epoch for training.')
+flags.DEFINE_integer('image_size', 62, 'x, y size of image')
+flags.DEFINE_integer('image_pixels', 62 * 62, 'num of pixels per image')
+flags.DEFINE_integer('num_classes', 3, 'Number of image classes')
+
 
 
 # If a model is trained with multiple GPUs, prefix all Op names with tower_name
@@ -189,9 +182,9 @@ def inference(images):
 
     # softmax, i.e. softmax(WX + b)
     with tf.variable_scope('softmax_linear') as scope:
-        weights = _variable_with_weight_decay('weights', [192, NUM_CLASSES],
+        weights = _variable_with_weight_decay('weights', [192, FLAGS.num_classes],
                                             stddev=1/192.0, wd=0.0)
-        biases = _variable_on_cpu('biases', [NUM_CLASSES],
+        biases = _variable_on_cpu('biases', [FLAGS.num_classes],
                                 tf.constant_initializer(0.0))
         softmax_linear = tf.add(tf.matmul(local4, weights), biases, name=scope.name)
         _activation_summary(softmax_linear)
@@ -271,35 +264,9 @@ def placeholder_inputs(batch_size):
     # Note that the shapes of the placeholders match the shapes of the full
     # image and label tensors, except the first dimension is now batch_size
     # rather than the full size of the train or test data sets.
-    images_placeholder = tf.placeholder(tf.float32, shape=(batch_size, IMAGE_PIXELS))
+    images_placeholder = tf.placeholder(tf.float32, shape=(batch_size, FLAGS.image_pixels))
     labels_placeholder = tf.placeholder(tf.int32, shape=(batch_size))
     return images_placeholder, labels_placeholder
-  
-  
-def fill_feed_dict(data_set, images_pl, labels_pl):
-    """Fills the feed_dict for training the given step.
-    A feed_dict takes the form of:
-    feed_dict = {
-        <placeholder>: <tensor of values to be passed for placeholder>,
-        ....
-    }
-    Args:
-        data_set: The set of images and labels, from input_data.read_data_sets()
-        images_pl: The images placeholder, from placeholder_inputs().
-        labels_pl: The labels placeholder, from placeholder_inputs().
-    Returns:
-        feed_dict: The feed dictionary mapping from placeholders to values.
-    """
-    # Create the feed_dict for the placeholders filled with the next
-    # `batch size ` examples.
-    images_feed, labels_feed = data_set.next_batch(FLAGS.batch_size,
-                                                    FLAGS.fake_data)
-    feed_dict = {
-        images_pl: images_feed,
-        labels_pl: labels_feed,
-    }
-    return feed_dict
-  
   
 
 #
