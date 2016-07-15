@@ -3,6 +3,7 @@ import os
 import tensorflow as tf
 from tensorflow.python.framework import ops
 from tensorflow.python.framework import dtypes
+import resize
 
 
 def read_labeled_image_batches(FLAGS):
@@ -45,6 +46,8 @@ def _read_labeled_image_list(path):
     Returns:
       List with all filenames and list with all labels
     """
+    
+    print("Reading all image labels and file names.")
     filenames = []
     labels = []
     label_dirs = [dir for dir in os.listdir(path) if os.path.isdir(os.path.join(path, dir))]
@@ -58,7 +61,6 @@ def _read_labeled_image_list(path):
     return filenames, labels
   
 
-
 def _read_images_from_disk(input_queue, FLAGS):
     """Consumes a single filename and label as a ' '-delimited string.
     Args:
@@ -66,23 +68,31 @@ def _read_images_from_disk(input_queue, FLAGS):
     Returns:
       Two tensors: the decoded image, and the string label.
     """
-    label = input_queue[1]
-    file_contents = tf.read_file(input_queue[0])
-    decoded = tf.image.decode_jpeg(file_contents, channels=3)
-    decoded.set_shape([FLAGS.image_size, FLAGS.image_size, 3])
-    return decoded, label 
+    
+    print("Reading images from disk.")
+    images = input_queue[0]
+    labels = input_queue[1]
+    file_contents = tf.read_file(images)
+    decoded_images = tf.image.decode_jpeg(file_contents, channels=3)   
+    #decoded_images = tf.image.convert_image_dtype(decoded_images, dtype=tf.float32)    
+    #decoded_images.set_shape([FLAGS.image_height, FLAGS.image_width, 3])
+    return decoded_images, labels 
 
 
 def _process_image(image, FLAGS):
+    print("Processing images.")
     reshaped_image = tf.cast(image, tf.float32)
-
-    # Randomly crop a [height, width] section of the image.
-    #distorted_image = tf.random_crop(reshaped_image, [IMAGE_SIZE, IMAGE_SIZE, 3])
 
     # Image processing for evaluation.
     # Crop the central [height, width] of the image.
-    resized_image = tf.image.resize_image_with_crop_or_pad(reshaped_image, FLAGS.image_size, FLAGS.image_size)
+    resized_image = resize.resize_image_with_crop_or_pad(reshaped_image, FLAGS.image_height, FLAGS.image_width, dynamic_shape=True)
+    resized_image.set_shape([FLAGS.image_height, FLAGS.image_width, 3])
 
     # Subtract off the mean and divide by the variance of the pixels.
     float_image = tf.image.per_image_whitening(resized_image)
     return float_image
+
+
+
+
+
