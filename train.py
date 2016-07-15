@@ -26,16 +26,17 @@ import model
 # Basic model parameters as external flags.
 flags = tf.app.flags
 FLAGS = flags.FLAGS
-flags.DEFINE_float('learning_rate', 0.01, 'Initial learning rate.')
-flags.DEFINE_integer('max_steps', 2000, 'Number of steps to run trainer.')
-flags.DEFINE_integer('batch_size', 128, 'Batch size. Must divide evenly into the dataset sizes.')
+flags.DEFINE_float('learning_rate', 0.1, 'Initial learning rate.')
+flags.DEFINE_integer('max_steps', 100000, 'Number of steps to run trainer.')
+flags.DEFINE_integer('batch_size', 64, 'Batch size. Must divide evenly into the dataset sizes.')
 flags.DEFINE_string('log_dir', 'log_dir', 'Directory to put the log data.')
 flags.DEFINE_string('img_dir', 'data/', 'Directory of images.')
-flags.DEFINE_boolean('fake_data', False, 'If true, uses fake data for unit testing.')             
 flags.DEFINE_integer('num_examples_per_epoch_for_train', 10000, 'Number of examples per epoch for training.')
-flags.DEFINE_integer('image_width', 80, 'x, y size of image')
-flags.DEFINE_integer('image_height', 60, 'x, y size of image')
-flags.DEFINE_integer('image_pixels', 80 * 60, 'num of pixels per image')
+flags.DEFINE_integer('orig_image_width', 240, 'x, y size of image')
+flags.DEFINE_integer('orig_image_height', 150, 'x, y size of image')
+flags.DEFINE_integer('image_width', 120, 'x, y size of image')
+flags.DEFINE_integer('image_height', 75, 'x, y size of image')
+flags.DEFINE_integer('image_pixels', 120 * 75, 'num of pixels per image')
 flags.DEFINE_integer('num_classes', 3, 'Number of image classes')   
    
    
@@ -54,7 +55,8 @@ def loss(logits, labels):
     return loss
   
 
-def training(loss, learning_rate):
+
+def train(loss, learning_rate):
     """Sets up the training Ops.
     Creates a summarizer to track the loss over time in TensorBoard.
     Creates an optimizer and applies the gradients to all trainable variables.
@@ -68,10 +70,13 @@ def training(loss, learning_rate):
     """
     # Add a scalar summary for the snapshot loss.
     tf.scalar_summary(loss.op.name, loss)
+    
     # Create the gradient descent optimizer with the given learning rate.
     optimizer = tf.train.GradientDescentOptimizer(learning_rate)
+    
     # Create a variable to track the global step.
     global_step = tf.Variable(0, name='global_step', trainable=False)
+    
     # Use the optimizer to apply the gradients that minimize the loss
     # (and also increment the global step counter) as a single training step.
     train_op = optimizer.minimize(loss, global_step=global_step)
@@ -105,7 +110,7 @@ if __name__ == '__main__':
             loss = loss(logits, labels)
 
             # Add to the Graph the Ops that calculate and apply gradients.
-            train_op = training(loss, FLAGS.learning_rate)
+            train_op = train(loss, FLAGS.learning_rate)
 
             # Build the summary operation based on the TF collection of Summaries.
             summary_op = tf.merge_all_summaries()

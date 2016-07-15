@@ -19,16 +19,18 @@ def read_labeled_image_batches(FLAGS):
 
     image, label = _read_images_from_disk(input_queue, FLAGS)
 
-    float_image = _process_image(image, FLAGS)
+    image = _process_image(image, FLAGS)
 
     # Ensure that the random shuffling has good mixing properties.
     num_preprocess_threads = 16
     min_fraction_of_examples_in_queue = 0.4
-    min_queue_examples = int(FLAGS.num_examples_per_epoch_for_train *
-                            min_fraction_of_examples_in_queue)
-                            
+    min_queue_examples = int(FLAGS.num_examples_per_epoch_for_train * min_fraction_of_examples_in_queue)
+                  
+    print ('Filling queue with %d CIFAR images before starting to train. '
+        'This will take a few minutes.' % min_queue_examples)
+                   
     image_batch, label_batch = tf.train.shuffle_batch(
-        [float_image, label], 
+        [image, label], 
         num_threads = num_preprocess_threads,
         capacity=min_queue_examples + 3 * FLAGS.batch_size,
         min_after_dequeue=min_queue_examples,
@@ -74,23 +76,23 @@ def _read_images_from_disk(input_queue, FLAGS):
     labels = input_queue[1]
     file_contents = tf.read_file(images)
     decoded_images = tf.image.decode_jpeg(file_contents, channels=3)   
-    #decoded_images = tf.image.convert_image_dtype(decoded_images, dtype=tf.float32)    
-    #decoded_images.set_shape([FLAGS.image_height, FLAGS.image_width, 3])
+    decoded_images.set_shape([FLAGS.orig_image_height, FLAGS.orig_image_width, 3])
+    
     return decoded_images, labels 
 
-
+# mogrify -gravity Center -extent 240x150 -background black -colorspace RGB *jpg
 def _process_image(image, FLAGS):
     print("Processing images.")
-    reshaped_image = tf.cast(image, tf.float32)
+    float_images = tf.cast(image, tf.float32)
 
     # Image processing for evaluation.
     # Crop the central [height, width] of the image.
-    resized_image = resize.resize_image_with_crop_or_pad(reshaped_image, FLAGS.image_height, FLAGS.image_width, dynamic_shape=True)
-    resized_image.set_shape([FLAGS.image_height, FLAGS.image_width, 3])
+    #resized_image = tf.image.resize_image_with_crop_or_pad(reshaped_image, FLAGS.image_height, FLAGS.image_width)
+    float_images = tf.image.resize_images(float_images, FLAGS.image_height, FLAGS.image_width)
 
     # Subtract off the mean and divide by the variance of the pixels.
-    float_image = tf.image.per_image_whitening(resized_image)
-    return float_image
+    float_images = tf.image.per_image_whitening(float_images)
+    return float_images
 
 
 
