@@ -118,18 +118,28 @@ if __name__ == '__main__':
             
             # Build a Graph that computes predictions from the inference model.
             # We use the same weight's etc. for the training and testing
-            with tf.variable_scope("image_filters") as scope:
+            with tf.variable_scope("cnn") as scope:
                 train_logits = model.inference(train_images, FLAGS)
                 scope.reuse_variables()
                 train_logits_acc = model.inference(train_images, FLAGS)
+                scope.reuse_variables()
                 test_logits = model.inference(testing_images, FLAGS)
 
             # Add to the Graph the Ops for loss calculation.
             train_loss = loss(train_logits, train_labels)
             
             # Claculate training and testing accuracy -> check for overfitting
-            train_accuracy = tf.nn.in_top_k(train_logits_acc, train_labels, 1) 
-            test_accuracy = tf.nn.in_top_k(test_logits, test_labels, 1)
+            train_correct = tf.nn.in_top_k(train_logits_acc, train_labels, 1) 
+            train_correct = tf.to_float(train_correct)
+            train_accuracy = tf.reduce_mean(train_correct)
+            
+            test_correct = tf.nn.in_top_k(test_logits, test_labels, 1)
+            test_correct = tf.to_float(test_correct)
+            test_accuracy = tf.reduce_mean(test_correct)
+
+            # Create accuracy summary for tensorboard
+            train_summary = tf.scalar_summary("training_accuracy", train_accuracy)
+            test_summary = tf.scalar_summary("test_accuracy", test_accuracy)
 
             # Add to the Graph the Ops that calculate and apply gradients.
             train_op = train(train_loss, FLAGS.learning_rate)
@@ -171,19 +181,19 @@ if __name__ == '__main__':
                     print ('%s: step %d, loss = %.4f (%.1f examples/sec; %.3f '
                                 'sec/batch)' % (datetime.now(), step, loss_value,
                                         examples_per_sec, sec_per_batch))
-                    
-                if step % 10 == 0:
-                    test_predictions = sess.run([test_accuracy])
-                    test_result = numpy.sum(test_predictions) / FLAGS.batch_size
-                    train_predictions = sess.run([train_accuracy])
-                    train_result = numpy.sum(train_predictions) / FLAGS.batch_size
-                    print ("Accuracy training: %.4f, Accuracy testing: %.4f" % (train_result, test_result))
-                    
+                 
                 
-                # Create summary      
+                # Create accuracy and summary for tensorboard      
                 if step % 100 == 0:
                     summary_str = sess.run(summary_op)
                     summary_writer.add_summary(summary_str, step)
+                    
+                    test_result, test_summ = sess.run([test_accuracy, test_summary])
+                    summary_writer.add_summary(test_summ, step)
+                    train_result, train_summ = sess.run([train_accuracy, train_summary])
+                    summary_writer.add_summary(train_summ, step)
+                    print ("Accuracy training: %.4f, Accuracy testing: %.4f" % (train_result, test_result))
+                    
 
                 # Save the model checkpoint periodically.
                 if step % 1000 == 0 or (step + 1) == FLAGS.max_steps:
