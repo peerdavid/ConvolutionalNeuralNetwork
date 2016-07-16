@@ -6,8 +6,13 @@
 # 1 = super
 # 2 = estate
 #
+# https://github.com/tensorflow/tensorflow/blob/master/tensorflow/models/image/mnist/convolutional.py
+#
 # ToDo:
-# - Training / Testing data sets -> https://www.tensorflow.org/versions/r0.9/tutorials/mnist/tf/index.html
+# - Training / Testing data sets in same process -> https://www.tensorflow.org/versions/r0.9/how_tos/variable_scope/index.html 
+# - Evaluation -> https://www.tensorflow.org/versions/r0.9/how_tos/reading_data/index.html
+#      - The training process reads training input data and periodically writes checkpoint files with all the trained variables.
+#      - The evaluation process restores the checkpoint files into an inference model that reads validation input data.
 # - Calculate accuracy
 # - Evaluation
 # - Display Conv layer 1
@@ -88,24 +93,6 @@ def train(loss, learning_rate):
     # (and also increment the global step counter) as a single training step.
     train_op = optimizer.minimize(loss, global_step=global_step)
     return train_op
-
-
-def placeholder_inputs(batch_size):
-    """Generate placeholder variables to represent the input tensors.
-    These placeholders are used as inputs by the rest of the model building
-    code and will be fed from the downloaded data in the .run() loop, below.
-    Args:
-        batch_size: The batch size will be baked into both placeholders.
-    Returns:
-        images_placeholder: Images placeholder.
-        labels_placeholder: Labels placeholder.
-    """
-    # Note that the shapes of the placeholders match the shapes of the full
-    # image and label tensors, except the first dimension is now batch_size
-    # rather than the full size of the train or test data sets.
-    images_placeholder = tf.placeholder(tf.float32, shape=(batch_size, FLAGS.image_pixels))
-    labels_placeholder = tf.placeholder(tf.int32, shape=(batch_size))
-    return images_placeholder, labels_placeholder
       
 
 #
@@ -120,25 +107,32 @@ if __name__ == '__main__':
         tf.gfile.MakeDirs(FLAGS.log_dir)
   
   
-        # https://github.com/tensorflow/tensorflow/blob/master/tensorflow/models/image/mnist/convolutional.py
+        
         # Tell TensorFlow that the model will be built into the default Graph.
         with tf.Graph().as_default():
-            training_images, training_labels, testing_images, testing_labels = input.read_labeled_image_batches(FLAGS)
+            train_images, train_labels, testing_images, test_labels = input.read_labeled_image_batches(FLAGS)
            
             # Display the training images in tensorboard
-            tf.image_summary('training_images', training_images, max_images = 5)
+            tf.image_summary('train_images', train_images, max_images = 5)
             tf.image_summary('test_images', testing_images, max_images = 5)
             
-            #images_placeholder, labels_placeholder = placeholder_inputs(FLAGS.batch_size)
-
             # Build a Graph that computes predictions from the inference model.
-            logits = model.inference(training_images, FLAGS)
+            # We use the same weight's etc. for the training and testing
+            with tf.variable_scope("image_filters") as scope:
+                train_logits = model.inference(train_images, FLAGS)
+                scope.reuse_variables()
+                train_logits_acc = model.inference(train_images, FLAGS)
+                test_logits = model.inference(testing_images, FLAGS)
 
             # Add to the Graph the Ops for loss calculation.
-            loss = loss(logits, training_labels)
+            train_loss = loss(train_logits, train_labels)
+            
+            # Claculate training and testing accuracy -> check for overfitting
+            train_accuracy = tf.nn.in_top_k(train_logits_acc, train_labels, 1) 
+            test_accuracy = tf.nn.in_top_k(test_logits, test_labels, 1)
 
             # Add to the Graph the Ops that calculate and apply gradients.
-            train_op = train(loss, FLAGS.learning_rate)
+            train_op = train(train_loss, FLAGS.learning_rate)
 
             # Build the summary operation based on the TF collection of Summaries.
             summary_op = tf.merge_all_summaries()
@@ -165,7 +159,7 @@ if __name__ == '__main__':
             # Start the training loop.
             for step in xrange(FLAGS.max_steps):
                 start_time = time.time()
-                _, loss_value = sess.run([train_op, loss])
+                _, loss_value = sess.run([train_op, train_loss])
                 duration = time.time() - start_time
 
                 # Print step loss etc.
@@ -177,6 +171,14 @@ if __name__ == '__main__':
                     print ('%s: step %d, loss = %.4f (%.1f examples/sec; %.3f '
                                 'sec/batch)' % (datetime.now(), step, loss_value,
                                         examples_per_sec, sec_per_batch))
+                    
+                if step % 10 == 0:
+                    test_predictions = sess.run([test_accuracy])
+                    test_result = numpy.sum(test_predictions) / FLAGS.batch_size
+                    train_predictions = sess.run([train_accuracy])
+                    train_result = numpy.sum(train_predictions) / FLAGS.batch_size
+                    print ("Accuracy training: %.4f, Accuracy testing: %.4f" % (train_result, test_result))
+                    
                 
                 # Create summary      
                 if step % 100 == 0:

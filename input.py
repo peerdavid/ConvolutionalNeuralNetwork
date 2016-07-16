@@ -4,11 +4,13 @@ import tensorflow as tf
 from tensorflow.python.framework import ops
 from tensorflow.python.framework import dtypes
 import resize
+import random
 
 
 def read_labeled_image_batches(FLAGS):
     # Reads pfathes of images together with their labels
     image_list, label_list = _read_labeled_image_list(FLAGS.img_dir)
+    image_list, label_list = _shuffle_tow_arrays_together(image_list, label_list)   
 
     # Split into training and testing sets
     training_images = image_list[:FLAGS.training_size]
@@ -84,7 +86,20 @@ def _read_labeled_image_list(path):
     
     assert len(filenames) == len(labels)
     return filenames, labels
-  
+
+
+def _shuffle_tow_arrays_together(a, b):
+    indexes = list(range(len(a)))
+    random.shuffle(indexes)
+    
+    shuffled_a = []
+    shuffled_b = []
+    for index in indexes:
+        shuffled_a.append(a[index])
+        shuffled_b.append(b[index])
+    
+    return shuffled_a, shuffled_b
+
 
 def _read_images_from_disk(input_queue, FLAGS):
     """Consumes a single filename and label as a ' '-delimited string.
