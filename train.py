@@ -5,7 +5,12 @@
 # 0 = oldtimer
 # 1 = super
 # 2 = estate
-
+#
+# ToDo:
+# - Training / Testing data sets -> https://www.tensorflow.org/versions/r0.9/tutorials/mnist/tf/index.html
+# - Calculate accuracy
+# - Evaluation
+# - Display Conv layer 1
 
 from __future__ import absolute_import
 from __future__ import division
@@ -15,6 +20,7 @@ from __future__ import print_function
 import os
 import traceback
 import time
+import numpy
 from datetime import datetime
 from six.moves import xrange
 
@@ -29,9 +35,10 @@ FLAGS = flags.FLAGS
 flags.DEFINE_float('learning_rate', 0.1, 'Initial learning rate.')
 flags.DEFINE_integer('max_steps', 100000, 'Number of steps to run trainer.')
 flags.DEFINE_integer('batch_size', 64, 'Batch size. Must divide evenly into the dataset sizes.')
+flags.DEFINE_integer('training_size', 9000, 'Size of training data. Rest will be used for testing')
 flags.DEFINE_string('log_dir', 'log_dir', 'Directory to put the log data.')
 flags.DEFINE_string('img_dir', 'data/', 'Directory of images.')
-flags.DEFINE_integer('num_examples_per_epoch_for_train', 10000, 'Number of examples per epoch for training.')
+#flags.DEFINE_integer('num_examples_per_epoch_for_train', 10000, 'Number of examples per epoch for training.')
 flags.DEFINE_integer('orig_image_width', 240, 'x, y size of image')
 flags.DEFINE_integer('orig_image_height', 150, 'x, y size of image')
 flags.DEFINE_integer('image_width', 120, 'x, y size of image')
@@ -83,6 +90,24 @@ def train(loss, learning_rate):
     return train_op
 
 
+def placeholder_inputs(batch_size):
+    """Generate placeholder variables to represent the input tensors.
+    These placeholders are used as inputs by the rest of the model building
+    code and will be fed from the downloaded data in the .run() loop, below.
+    Args:
+        batch_size: The batch size will be baked into both placeholders.
+    Returns:
+        images_placeholder: Images placeholder.
+        labels_placeholder: Labels placeholder.
+    """
+    # Note that the shapes of the placeholders match the shapes of the full
+    # image and label tensors, except the first dimension is now batch_size
+    # rather than the full size of the train or test data sets.
+    images_placeholder = tf.placeholder(tf.float32, shape=(batch_size, FLAGS.image_pixels))
+    labels_placeholder = tf.placeholder(tf.int32, shape=(batch_size))
+    return images_placeholder, labels_placeholder
+      
+
 #
 # M A I N
 #
@@ -95,19 +120,22 @@ if __name__ == '__main__':
         tf.gfile.MakeDirs(FLAGS.log_dir)
   
   
-        # https://github.com/tensorflow/tensorflow/blob/r0.9/tensorflow/examples/tutorials/mnist/fully_connected_feed.py
+        # https://github.com/tensorflow/tensorflow/blob/master/tensorflow/models/image/mnist/convolutional.py
         # Tell TensorFlow that the model will be built into the default Graph.
         with tf.Graph().as_default():
-            images, labels = input.read_labeled_image_batches(FLAGS)
+            training_images, training_labels, testing_images, testing_labels = input.read_labeled_image_batches(FLAGS)
+           
+            # Display the training images in tensorboard
+            tf.image_summary('training_images', training_images, max_images = 5)
+            tf.image_summary('test_images', testing_images, max_images = 5)
             
-            # Display the training images in the visualizer.
-            tf.image_summary('images', images)
+            #images_placeholder, labels_placeholder = placeholder_inputs(FLAGS.batch_size)
 
             # Build a Graph that computes predictions from the inference model.
-            logits = model.inference(images, FLAGS)
+            logits = model.inference(training_images, FLAGS)
 
             # Add to the Graph the Ops for loss calculation.
-            loss = loss(logits, labels)
+            loss = loss(logits, training_labels)
 
             # Add to the Graph the Ops that calculate and apply gradients.
             train_op = train(loss, FLAGS.learning_rate)
@@ -146,9 +174,8 @@ if __name__ == '__main__':
                     examples_per_sec = num_examples_per_step / duration
                     sec_per_batch = float(duration)
 
-                    format_str = ('%s: step %d, loss = %.2f (%.1f examples/sec; %.3f '
-                                'sec/batch)')
-                    print (format_str % (datetime.now(), step, loss_value,
+                    print ('%s: step %d, loss = %.4f (%.1f examples/sec; %.3f '
+                                'sec/batch)' % (datetime.now(), step, loss_value,
                                         examples_per_sec, sec_per_batch))
                 
                 # Create summary      
