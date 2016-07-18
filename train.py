@@ -51,6 +51,7 @@ flags.DEFINE_float('learning_rate', 0.01, 'Initial learning rate.')
 flags.DEFINE_integer('max_steps', 100000, 'Number of steps to run trainer.')
 flags.DEFINE_integer('batch_size', 256, 'Batch size. Must divide evenly into the dataset sizes.')
 flags.DEFINE_integer('training_size', 2500, 'Size of training data. Rest will be used for testing')
+flags.DEFINE_integer('num_epochs', 1000, 'Number of epochs to run trainer.')
 flags.DEFINE_string('log_dir', 'log_dir', 'Directory to put the log data.')
 flags.DEFINE_string('img_dir', 'mnist/', 'Directory of images.')
 #flags.DEFINE_integer('num_examples_per_epoch_for_train', 10000, 'Number of examples per epoch for training.')
@@ -147,11 +148,11 @@ if __name__ == '__main__':
             logits = model.inference(images_placeholder, FLAGS)
             
             # Claculate training and testing accuracy -> check for overfitting
-            train_correct = tf.nn.in_top_k(logits, train_labels, 1) 
+            train_correct = tf.nn.in_top_k(logits, labels_placeholder, 1) 
             train_correct = tf.to_float(train_correct)
             train_accuracy = tf.reduce_mean(train_correct)
             
-            test_correct = tf.nn.in_top_k(logits, test_labels, 1)
+            test_correct = tf.nn.in_top_k(logits, labels_placeholder, 1)
             test_correct = tf.to_float(test_correct)
             test_accuracy = tf.reduce_mean(test_correct)
 
@@ -195,7 +196,6 @@ if __name__ == '__main__':
                 # Start the training loop.
                 for step in xrange(FLAGS.max_steps):
                     if coord.should_stop():
-                        print("Coordinator should stop.")
                         break
                         
                     start_time = time.time()
@@ -217,12 +217,12 @@ if __name__ == '__main__':
                                     examples_per_sec, sec_per_batch))
                     
                     # Calculate accuracy and summary for tensorboard      
-                    if step % 50 == 0 or step == 0:            
+                    if step % 100 == 0 or step == 0:            
                         # create test images                   
                         test_images_r, test_labels_r = sess.run([test_images, test_labels])
                         test_feed = {images_placeholder: test_images_r,
                                     labels_placeholder: test_labels_r}
-                                
+                        
                         train_acc_val = sess.run([train_accuracy], feed_dict=train_feed)
                         test_acc_val = sess.run([test_accuracy], feed_dict=test_feed)
                                     
@@ -236,12 +236,19 @@ if __name__ == '__main__':
                     if step % 1000 == 0 or (step + 1) == FLAGS.max_steps:
                         checkpoint_path = os.path.join(FLAGS.log_dir, 'model.ckpt')
                         saver.save(sess, checkpoint_path, global_step=step)
+            
+            
+            except tf.errors.OutOfRangeError:
+                checkpoint_path = os.path.join(FLAGS.log_dir, 'model.ckpt')
+                saver.save(sess, checkpoint_path, global_step=step)
+                print('Done training for %d epochs, %d steps.' % (FLAGS.num_epochs, step))
+            
             finally:
                 # Finished
                 print("\nWaiting for all threads...")
                 coord.request_stop()
                 coord.join(threads)
-                print("Closing session..")
+                print("Closing session...\n")
                 sess.close()
  
     except:
