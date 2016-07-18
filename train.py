@@ -47,9 +47,9 @@ import model
 # Basic model parameters as external flags.
 flags = tf.app.flags
 FLAGS = flags.FLAGS
-flags.DEFINE_float('learning_rate', 0.1, 'Initial learning rate.')
+flags.DEFINE_float('learning_rate', 0.01, 'Initial learning rate.')
 flags.DEFINE_integer('max_steps', 100000, 'Number of steps to run trainer.')
-flags.DEFINE_integer('batch_size', 64, 'Batch size. Must divide evenly into the dataset sizes.')
+flags.DEFINE_integer('batch_size', 256, 'Batch size. Must divide evenly into the dataset sizes.')
 flags.DEFINE_integer('training_size', 2500, 'Size of training data. Rest will be used for testing')
 flags.DEFINE_string('log_dir', 'log_dir', 'Directory to put the log data.')
 flags.DEFINE_string('img_dir', 'mnist/', 'Directory of images.')
@@ -73,8 +73,8 @@ def loss(logits, labels):
     labels = tf.to_int64(labels)
     cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(
         logits, labels, name='xentropy')
-    loss = tf.reduce_mean(cross_entropy, name='loss_xentropy_mean')
-    return loss
+    ret_loss = tf.reduce_mean(cross_entropy, name='loss_xentropy_mean')
+    return ret_loss
   
 
 
@@ -123,6 +123,7 @@ def placeholder_inputs(batch_size):
     labels_placeholder = tf.placeholder(tf.int32, shape=FLAGS.batch_size)
     return images_placeholder, labels_placeholder
 
+  
 
 #
 # M A I N
@@ -134,9 +135,7 @@ if __name__ == '__main__':
         if tf.gfile.Exists(FLAGS.log_dir):
             tf.gfile.DeleteRecursively(FLAGS.log_dir)
         tf.gfile.MakeDirs(FLAGS.log_dir)
-  
-  
-        
+
         # Tell TensorFlow that the model will be built into the default Graph.
         with tf.Graph().as_default():
             train_images, train_labels, test_images, test_labels = input.read_labeled_image_batches(FLAGS)
@@ -192,51 +191,59 @@ if __name__ == '__main__':
             # Instantiate a SummaryWriter to output summaries and the Graph.
             summary_writer = tf.train.SummaryWriter(FLAGS.log_dir, sess.graph)
             
-            # Start the training loop.
-            for step in xrange(FLAGS.max_steps):
-                if coord.should_stop():
-                    break
+            try:
+                # Start the training loop.
+                for step in xrange(FLAGS.max_steps):
+                    if coord.should_stop():
+                        print("Coordinator should stop.")
+                        break
+                        
+                    start_time = time.time()
+                    train_images_r, train_labels_r = sess.run([train_images, train_labels])
+                    train_feed = {images_placeholder: train_images_r,
+                                labels_placeholder: train_labels_r}
+                            
+                    _, loss_value = sess.run([train_op, train_loss], feed_dict=train_feed)
+                    duration = time.time() - start_time
+
+                    # Print step loss etc.
+                    if step % 10 == 0:
+                        num_examples_per_step = FLAGS.batch_size
+                        examples_per_sec = num_examples_per_step / duration
+                        sec_per_batch = float(duration)
+
+                        print ('%s: step %d, loss = %.6f (%.1f examples/sec; %.3f '
+                                    'sec/batch)' % (datetime.now(), step, loss_value,
+                                    examples_per_sec, sec_per_batch))
                     
-                start_time = time.time()
-                train_images_r, train_labels_r = sess.run([train_images, train_labels])
-                train_feed = {images_placeholder: train_images_r,
-                              labels_placeholder: train_labels_r}
-                          
-                _, loss_value = sess.run([train_op, train_loss], feed_dict=train_feed)
-                duration = time.time() - start_time
-
-                # Print step loss etc.
-                if step % 10 == 0:
-                    num_examples_per_step = FLAGS.batch_size
-                    examples_per_sec = num_examples_per_step / duration
-                    sec_per_batch = float(duration)
-
-                    print ('%s: step %d, loss = %.5f (%.1f examples/sec; %.3f '
-                                'sec/batch)' % (datetime.now(), step, loss_value,
-                                examples_per_sec, sec_per_batch))
-                 
-                
-                # Calculate accuracy and summary for tensorboard      
-                if step % 50 == 0:            
-                    # create test images                   
-                    test_images_r, test_labels_r = sess.run([test_images, test_labels])
-                    test_feed = {images_placeholder: test_images_r,
-                                  labels_placeholder: test_labels_r}
-                              
-                    train_acc_val = sess.run([train_accuracy], feed_dict=train_feed)
-                    test_acc_val = sess.run([test_accuracy], feed_dict=test_feed)
-                                  
-                    print ('%s: train-accuracy %.2f, test-accuracy = %.2f' % (datetime.now(), 
-                                train_acc_val[0], test_acc_val[0]))
+                    # Calculate accuracy and summary for tensorboard      
+                    if step % 50 == 0 or step == 0:            
+                        # create test images                   
+                        test_images_r, test_labels_r = sess.run([test_images, test_labels])
+                        test_feed = {images_placeholder: test_images_r,
+                                    labels_placeholder: test_labels_r}
                                 
-                    summary_str = sess.run([summary_op], feed_dict=train_feed)
-                    summary_writer.add_summary(summary_str[0], step)                    
+                        train_acc_val = sess.run([train_accuracy], feed_dict=train_feed)
+                        test_acc_val = sess.run([test_accuracy], feed_dict=test_feed)
+                                    
+                        print ('%s: train-accuracy %.2f, test-accuracy = %.2f' % (datetime.now(), 
+                                    train_acc_val[0], test_acc_val[0]))
+                                    
+                        summary_str = sess.run([summary_op], feed_dict=train_feed)
+                        summary_writer.add_summary(summary_str[0], step)                    
 
-                # Save the model checkpoint periodically.
-                if step % 1000 == 0 or (step + 1) == FLAGS.max_steps:
-                    checkpoint_path = os.path.join(FLAGS.log_dir, 'model.ckpt')
-                    saver.save(sess, checkpoint_path, global_step=step)
-
+                    # Save the model checkpoint periodically.
+                    if step % 1000 == 0 or (step + 1) == FLAGS.max_steps:
+                        checkpoint_path = os.path.join(FLAGS.log_dir, 'model.ckpt')
+                        saver.save(sess, checkpoint_path, global_step=step)
+            finally:
+                # Finished
+                print("\nWaiting for all threads...")
+                coord.request_stop()
+                coord.join(threads)
+                print("Closing session..")
+                sess.close()
+ 
     except:
         traceback.print_exc()
 
