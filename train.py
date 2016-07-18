@@ -1,21 +1,31 @@
 
 #
 # Classify cars with tensorflow
+# Peer David (2016)
 #
+# -- car_interclass --
 # 0 = oldtimer
 # 1 = super
 # 2 = estate
 #
-# https://github.com/tensorflow/tensorflow/blob/master/tensorflow/models/image/mnist/convolutional.py
+# -- data --
+# 0 = faces
+# 1 = airplane
+# 2 = motorbike
 #
+# https://github.com/tensorflow/tensorflow/blob/master/tensorflow/models/image/mnist/convolutional.py
+# https://www.tensorflow.org/versions/r0.9/how_tos/variable_scope/index.html 
+# 
 # ToDo:
-# - Training / Testing data sets in same process -> https://www.tensorflow.org/versions/r0.9/how_tos/variable_scope/index.html 
+# - Create Class for dataset -> contains images, labels and # for testing, training and evaluation
+# - Get number of classes by folders
 # - Evaluation -> https://www.tensorflow.org/versions/r0.9/how_tos/reading_data/index.html
 #      - The training process reads training input data and periodically writes checkpoint files with all the trained variables.
 #      - The evaluation process restores the checkpoint files into an inference model that reads validation input data.
-# - Calculate accuracy
-# - Evaluation
-# - Display Conv layer 1
+# - Display Conv layer 1 -> steerable filters?
+# - classify.py
+# - Dropout
+#
 
 from __future__ import absolute_import
 from __future__ import division
@@ -40,16 +50,16 @@ FLAGS = flags.FLAGS
 flags.DEFINE_float('learning_rate', 0.1, 'Initial learning rate.')
 flags.DEFINE_integer('max_steps', 100000, 'Number of steps to run trainer.')
 flags.DEFINE_integer('batch_size', 64, 'Batch size. Must divide evenly into the dataset sizes.')
-flags.DEFINE_integer('training_size', 9000, 'Size of training data. Rest will be used for testing')
+flags.DEFINE_integer('training_size', 2500, 'Size of training data. Rest will be used for testing')
 flags.DEFINE_string('log_dir', 'log_dir', 'Directory to put the log data.')
-flags.DEFINE_string('img_dir', 'data/', 'Directory of images.')
+flags.DEFINE_string('img_dir', 'mnist/', 'Directory of images.')
 #flags.DEFINE_integer('num_examples_per_epoch_for_train', 10000, 'Number of examples per epoch for training.')
-flags.DEFINE_integer('orig_image_width', 240, 'x, y size of image')
-flags.DEFINE_integer('orig_image_height', 150, 'x, y size of image')
-flags.DEFINE_integer('image_width', 120, 'x, y size of image')
-flags.DEFINE_integer('image_height', 75, 'x, y size of image')
-flags.DEFINE_integer('image_pixels', 120 * 75, 'num of pixels per image')
-flags.DEFINE_integer('num_classes', 3, 'Number of image classes')   
+flags.DEFINE_integer('orig_image_width', 28, 'x, y size of image')
+flags.DEFINE_integer('orig_image_height', 28, 'x, y size of image')
+flags.DEFINE_integer('image_width', 28, 'x, y size of image')
+flags.DEFINE_integer('image_height', 28, 'x, y size of image')
+flags.DEFINE_integer('image_pixels', 28 * 28, 'num of pixels per image')
+flags.DEFINE_integer('num_classes', 10, 'Number of image classes')   
    
    
 def loss(logits, labels):
@@ -63,7 +73,7 @@ def loss(logits, labels):
     labels = tf.to_int64(labels)
     cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(
         logits, labels, name='xentropy')
-    loss = tf.reduce_mean(cross_entropy, name='xentropy_mean')
+    loss = tf.reduce_mean(cross_entropy, name='loss_xentropy_mean')
     return loss
   
 
@@ -94,6 +104,25 @@ def train(loss, learning_rate):
     train_op = optimizer.minimize(loss, global_step=global_step)
     return train_op
       
+      
+def placeholder_inputs(batch_size):
+    """Generate placeholder variables to represent the the input tensors.
+    These placeholders are used as inputs by the rest of the model building
+    code and will be fed from the downloaded ckpt in the .run() loop, below.
+    Args:
+        batch_size: The batch size will be baked into both placeholders.
+    Returns:
+        images_placeholder: Images placeholder.
+        labels_placeholder: Labels placeholder.
+    """
+    # Note that the shapes of the placeholders match the shapes of the full
+    # image and label tensors, except the first dimension is now batch_size
+    # rather than the full size of the train or test ckpt sets.
+    # batch_size = -1
+    images_placeholder = tf.placeholder(tf.float32, shape=(FLAGS.batch_size, FLAGS.image_height, FLAGS.image_width, 3))
+    labels_placeholder = tf.placeholder(tf.int32, shape=FLAGS.batch_size)
+    return images_placeholder, labels_placeholder
+
 
 #
 # M A I N
@@ -110,66 +139,70 @@ if __name__ == '__main__':
         
         # Tell TensorFlow that the model will be built into the default Graph.
         with tf.Graph().as_default():
-            train_images, train_labels, testing_images, test_labels = input.read_labeled_image_batches(FLAGS)
-           
-            # Display the training images in tensorboard
-            tf.image_summary('train_images', train_images, max_images = 5)
-            tf.image_summary('test_images', testing_images, max_images = 5)
-            
+            train_images, train_labels, test_images, test_labels = input.read_labeled_image_batches(FLAGS)
+                      
+            images_placeholder, labels_placeholder = placeholder_inputs(FLAGS.batch_size)
+                    
             # Build a Graph that computes predictions from the inference model.
             # We use the same weight's etc. for the training and testing
-            with tf.variable_scope("cnn") as scope:
-                train_logits = model.inference(train_images, FLAGS)
-                scope.reuse_variables()
-                train_logits_acc = model.inference(train_images, FLAGS)
-                scope.reuse_variables()
-                test_logits = model.inference(testing_images, FLAGS)
-
-            # Add to the Graph the Ops for loss calculation.
-            train_loss = loss(train_logits, train_labels)
+            logits = model.inference(images_placeholder, FLAGS)
             
             # Claculate training and testing accuracy -> check for overfitting
-            train_correct = tf.nn.in_top_k(train_logits_acc, train_labels, 1) 
+            train_correct = tf.nn.in_top_k(logits, train_labels, 1) 
             train_correct = tf.to_float(train_correct)
             train_accuracy = tf.reduce_mean(train_correct)
             
-            test_correct = tf.nn.in_top_k(test_logits, test_labels, 1)
+            test_correct = tf.nn.in_top_k(logits, test_labels, 1)
             test_correct = tf.to_float(test_correct)
             test_accuracy = tf.reduce_mean(test_correct)
 
-            # Create accuracy summary for tensorboard
-            train_summary = tf.scalar_summary("training_accuracy", train_accuracy)
-            test_summary = tf.scalar_summary("test_accuracy", test_accuracy)
+            # Add to the Graph the Ops for loss calculation.
+            train_loss = loss(logits, labels_placeholder)
 
             # Add to the Graph the Ops that calculate and apply gradients.
             train_op = train(train_loss, FLAGS.learning_rate)
 
+            # Create a saver for writing training checkpoints.
+            saver = tf.train.Saver(tf.all_variables())
+
+            # Add accuracy and images to tesnorboard
+            tf.scalar_summary("training_accuracy", train_accuracy)
+            tf.scalar_summary("test_accuracy", test_accuracy)
+            tf.image_summary('train_images', train_images, max_images = 5)
+            tf.image_summary('test_images', test_images, max_images = 5)
+    
             # Build the summary operation based on the TF collection of Summaries.
             summary_op = tf.merge_all_summaries()
-
+            
             # Add the variable initializer Op.
             init = tf.initialize_all_variables()
-
-            # Create a saver for writing training checkpoints.
-            saver = tf.train.Saver()
-
+            
             # Create a session for running Ops on the Graph.
             sess = tf.Session()
-
-            # Instantiate a SummaryWriter to output summaries and the Graph.
-            summary_writer = tf.train.SummaryWriter(FLAGS.log_dir, sess.graph)
 
             # And then after everything is built:
             # Run the Op to initialize the variables.
             sess.run(init)
-
-            # Start the queue runners.
-            tf.train.start_queue_runners(sess=sess)
     
+            # Start the queue runners.
+            # https://github.com/HamedMP/ImageFlow/blob/master/example_project/my_cifar_train.py
+            coord = tf.train.Coordinator()
+            threads = tf.train.start_queue_runners(sess=sess, coord=coord)
+    
+            # Instantiate a SummaryWriter to output summaries and the Graph.
+            summary_writer = tf.train.SummaryWriter(FLAGS.log_dir, sess.graph)
+            
             # Start the training loop.
             for step in xrange(FLAGS.max_steps):
+                if coord.should_stop():
+                    break
+                    
                 start_time = time.time()
-                _, loss_value = sess.run([train_op, train_loss])
+                train_images_r, train_labels_r = sess.run([train_images, train_labels])
+                train_feed = {images_placeholder: train_images_r,
+                              labels_placeholder: train_labels_r}
+                          
+                _, loss_value = sess.run([train_op, train_loss], feed_dict=train_feed)
                 duration = time.time() - start_time
 
                 # Print step loss etc.
@@ -178,22 +211,26 @@ if __name__ == '__main__':
                     examples_per_sec = num_examples_per_step / duration
                     sec_per_batch = float(duration)
 
-                    print ('%s: step %d, loss = %.4f (%.1f examples/sec; %.3f '
+                    print ('%s: step %d, loss = %.5f (%.1f examples/sec; %.3f '
                                 'sec/batch)' % (datetime.now(), step, loss_value,
-                                        examples_per_sec, sec_per_batch))
+                                examples_per_sec, sec_per_batch))
                  
                 
-                # Create accuracy and summary for tensorboard      
-                if step % 100 == 0:
-                    summary_str = sess.run(summary_op)
-                    summary_writer.add_summary(summary_str, step)
-                    
-                    test_result, test_summ = sess.run([test_accuracy, test_summary])
-                    summary_writer.add_summary(test_summ, step)
-                    train_result, train_summ = sess.run([train_accuracy, train_summary])
-                    summary_writer.add_summary(train_summ, step)
-                    print ("Accuracy training: %.4f, Accuracy testing: %.4f" % (train_result, test_result))
-                    
+                # Calculate accuracy and summary for tensorboard      
+                if step % 50 == 0:            
+                    # create test images                   
+                    test_images_r, test_labels_r = sess.run([test_images, test_labels])
+                    test_feed = {images_placeholder: test_images_r,
+                                  labels_placeholder: test_labels_r}
+                              
+                    train_acc_val = sess.run([train_accuracy], feed_dict=train_feed)
+                    test_acc_val = sess.run([test_accuracy], feed_dict=test_feed)
+                                  
+                    print ('%s: train-accuracy %.2f, test-accuracy = %.2f' % (datetime.now(), 
+                                train_acc_val[0], test_acc_val[0]))
+                                
+                    summary_str = sess.run([summary_op], feed_dict=train_feed)
+                    summary_writer.add_summary(summary_str[0], step)                    
 
                 # Save the model checkpoint periodically.
                 if step % 1000 == 0 or (step + 1) == FLAGS.max_steps:

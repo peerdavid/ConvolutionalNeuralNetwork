@@ -29,39 +29,38 @@ def read_labeled_image_batches(FLAGS):
     tf_test_labels = ops.convert_to_tensor(test_labels, dtype=dtypes.int32)
 
     # Makes an input queue
-    input_queue_train = tf.train.slice_input_producer([tf_train_images, tf_train_labels],
-                                                shuffle=True)
-    input_queue_test = tf.train.slice_input_producer([tf_test_images, tf_test_labels],
-                                                shuffle=True)
+    input_queue_train = tf.train.slice_input_producer([tf_train_images, tf_train_labels])
+    input_queue_test = tf.train.slice_input_producer([tf_test_images, tf_test_labels])
 
     train_images_disk, train_labels_disk = _read_images_from_disk(input_queue_train, FLAGS)
     test_images_disk, test_labels_disk = _read_images_from_disk(input_queue_test, FLAGS)
-
     
     train_images_disk = _process_image(train_images_disk, FLAGS)
     test_images_disk = _process_image(train_images_disk, FLAGS) 
 
     # Ensure that the random shuffling has good mixing properties.
-    num_preprocess_threads = 16
-    
-    min_fraction_of_examples_in_queue = 0.4
+    num_preprocess_threads = 8
+    min_fraction_of_examples_in_queue = 0.8
     min_queue_examples = int(num_train_data * min_fraction_of_examples_in_queue) 
+    
     train_image_batch, train_label_batch = tf.train.shuffle_batch(
         [train_images_disk, train_labels_disk], 
         num_threads = num_preprocess_threads,
-        capacity=min_queue_examples + 3 * FLAGS.batch_size,
+        capacity=min_queue_examples + 4 * FLAGS.batch_size,
         min_after_dequeue=min_queue_examples,
         batch_size=FLAGS.batch_size)
+    #train_image_batch, train_label_batch = tf.train.batch([train_images_disk, train_labels_disk], batch_size=FLAGS.batch_size)
         
     min_queue_examples = int(num_test_data * min_fraction_of_examples_in_queue)
     test_image_batch, test_label_batch = tf.train.shuffle_batch(
         [test_images_disk, test_labels_disk], 
         num_threads = num_preprocess_threads,
-        capacity=min_queue_examples + 3 * FLAGS.batch_size,
+        capacity=min_queue_examples + 4 * FLAGS.batch_size,
         min_after_dequeue=min_queue_examples,
         batch_size=FLAGS.batch_size)
+    #test_image_batch, test_label_batch = tf.train.batch([test_images_disk, test_labels_disk], batch_size=FLAGS.batch_size)
                                         
-    return train_image_batch, tf.reshape(train_label_batch, [FLAGS.batch_size]), test_image_batch, tf.reshape(test_label_batch, [FLAGS.batch_size])
+    return train_image_batch, train_label_batch, test_image_batch, test_label_batch
    
 
 def _read_labeled_image_list(path):
@@ -113,10 +112,11 @@ def _read_images_from_disk(input_queue, FLAGS):
     images = input_queue[0]
     labels = input_queue[1]
     file_contents = tf.read_file(images)
-    decoded_images = tf.image.decode_jpeg(file_contents, channels=3)   
+    decoded_images = tf.image.decode_png(file_contents, channels=3)   
     decoded_images.set_shape([FLAGS.orig_image_height, FLAGS.orig_image_width, 3])
     
     return decoded_images, labels 
+
 
 # mogrify -gravity Center -extent 240x150 -background black -colorspace RGB *jpg
 def _process_image(image, FLAGS):
