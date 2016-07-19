@@ -47,7 +47,10 @@ import model
 # Basic model parameters as external flags.
 flags = tf.app.flags
 FLAGS = flags.FLAGS
-flags.DEFINE_float('learning_rate', 0.01, 'Initial learning rate.')
+flags.DEFINE_float('initial_learning_rate', 0.1, 'Initial learning rate.')
+flags.DEFINE_integer('num_epochs_per_decay', 100, 'Epochs after which learning rate decays.')
+flags.DEFINE_float('learning_rate_decay_factor', 0.1, 'Learning rate decay factor.')
+flags.DEFINE_float('moving_average_decay', 0.9999, 'The decay to use for the moving average.')
 flags.DEFINE_integer('max_steps', 100000, 'Number of steps to run trainer.')
 flags.DEFINE_integer('batch_size', 256, 'Batch size. Must divide evenly into the dataset sizes.')
 flags.DEFINE_integer('training_size', 2500, 'Size of training data. Rest will be used for testing')
@@ -64,45 +67,109 @@ flags.DEFINE_integer('num_classes', 10, 'Number of image classes')
    
    
 def loss(logits, labels):
-    """Calculates the loss from the logits and the labels.
+    """Add L2Loss to all the trainable variables.
+
+    Add summary for "Loss" and "Loss/avg".
     Args:
-    logits: Logits tensor, float - [batch_size, NUM_CLASSES].
-    labels: Labels tensor, int32 - [batch_size].
+        logits: Logits from inference().
+        labels: Labels from distorted_inputs or inputs(). 1-D tensor
+                of shape [batch_size]
+
     Returns:
-    loss: Loss tensor of type float.
+        Loss tensor of type float.
     """
-    labels = tf.to_int64(labels)
+    # Calculate the average cross entropy loss across the batch.
+    labels = tf.cast(labels, tf.int64)
     cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(
-        logits, labels, name='xentropy')
-    ret_loss = tf.reduce_mean(cross_entropy, name='loss_xentropy_mean')
-    return ret_loss
+        logits, labels, name='cross_entropy_per_example')
+    cross_entropy_mean = tf.reduce_mean(cross_entropy, name='cross_entropy')
+    tf.add_to_collection('losses', cross_entropy_mean)
+
+    # The total loss is defined as the cross entropy loss plus all of the weight
+    # decay terms (L2 loss).
+    return tf.add_n(tf.get_collection('losses'), name='total_loss')
   
+  
+def _add_loss_summaries(total_loss):
+    """Add summaries for losses in CIFAR-10 model.
 
+    Generates moving average for all losses and associated summaries for
+    visualizing the performance of the network.
 
-def train(loss, learning_rate):
-    """Sets up the training Ops.
-    Creates a summarizer to track the loss over time in TensorBoard.
-    Creates an optimizer and applies the gradients to all trainable variables.
-    The Op returned by this function is what must be passed to the
-    `sess.run()` call to cause the model to train.
     Args:
-    loss: Loss tensor, from loss().
-    learning_rate: The learning rate to use for gradient descent.
+        total_loss: Total loss from loss().
     Returns:
-    train_op: The Op for training.
+        loss_averages_op: op for generating moving averages of losses.
     """
-    # Add a scalar summary for the snapshot loss.
-    tf.scalar_summary(loss.op.name, loss)
+    # Compute the moving average of all individual losses and the total loss.
+    loss_averages = tf.train.ExponentialMovingAverage(0.9, name='avg')
+    losses = tf.get_collection('losses')
+    loss_averages_op = loss_averages.apply(losses + [total_loss])
+
+    # Attach a scalar summary to all individual losses and the total loss; do the
+    # same for the averaged version of the losses.
+    for l in losses + [total_loss]:
+        # Name each loss as '(raw)' and name the moving average version of the loss
+        # as the original loss name.
+        tf.scalar_summary(l.op.name +' (raw)', l)
+        tf.scalar_summary(l.op.name, loss_averages.average(l))
+
+    return loss_averages_op
     
-    # Create the gradient descent optimizer with the given learning rate.
-    optimizer = tf.train.GradientDescentOptimizer(learning_rate)
     
-    # Create a variable to track the global step.
-    global_step = tf.Variable(0, name='global_step', trainable=False)
-    
-    # Use the optimizer to apply the gradients that minimize the loss
-    # (and also increment the global step counter) as a single training step.
-    train_op = optimizer.minimize(loss, global_step=global_step)
+def train(total_loss, global_step, num_images_per_epoch_of_train):
+    """Train CIFAR-10 model.
+
+    Create an optimizer and apply to all trainable variables. Add moving
+    average for all trainable variables.
+
+    Args:
+        total_loss: Total loss from loss().
+        global_step: Integer Variable counting the number of training steps
+        processed.
+    Returns:
+        train_op: op for training.
+    """
+    # Variables that affect learning rate.
+    num_batches_per_epoch = num_images_per_epoch_of_train / FLAGS.batch_size
+    decay_steps = int(num_batches_per_epoch * FLAGS.num_epochs_per_decay)
+
+    # Decay the learning rate exponentially based on the number of steps.
+    lr = tf.train.exponential_decay(FLAGS.initial_learning_rate,
+                                    global_step,
+                                    decay_steps,
+                                    FLAGS.learning_rate_decay_factor,
+                                    staircase=True)
+    tf.scalar_summary('learning_rate', lr)
+
+    # Generate moving averages of all losses and associated summaries.
+    loss_averages_op = _add_loss_summaries(total_loss)
+
+    # Compute gradients.
+    with tf.control_dependencies([loss_averages_op]):
+        opt = tf.train.GradientDescentOptimizer(lr)
+        grads = opt.compute_gradients(total_loss)
+
+    # Apply gradients.
+    apply_gradient_op = opt.apply_gradients(grads, global_step=global_step)
+
+    # Add histograms for trainable variables.
+    for var in tf.trainable_variables():
+        tf.histogram_summary(var.op.name, var)
+
+    # Add histograms for gradients.
+    for grad, var in grads:
+        if grad is not None:
+            tf.histogram_summary(var.op.name + '/gradients', grad)
+
+    # Track the moving averages of all trainable variables.
+    variable_averages = tf.train.ExponentialMovingAverage(
+        FLAGS.moving_average_decay, global_step)
+    variables_averages_op = variable_averages.apply(tf.trainable_variables())
+
+    with tf.control_dependencies([apply_gradient_op, variables_averages_op]):
+        train_op = tf.no_op(name='train')
+
     return train_op
       
       
@@ -139,7 +206,9 @@ if __name__ == '__main__':
 
         # Tell TensorFlow that the model will be built into the default Graph.
         with tf.Graph().as_default():
-            train_images, train_labels, test_images, test_labels = input.read_labeled_image_batches(FLAGS)
+            data_sets = input.read_labeled_image_batches(FLAGS)
+            train_data_set = data_sets.train
+            test_data_set = data_sets.test
                       
             images_placeholder, labels_placeholder = placeholder_inputs(FLAGS.batch_size)
                     
@@ -160,16 +229,15 @@ if __name__ == '__main__':
             train_loss = loss(logits, labels_placeholder)
 
             # Add to the Graph the Ops that calculate and apply gradients.
-            train_op = train(train_loss, FLAGS.learning_rate)
+            global_step = tf.Variable(0, trainable=False)
+            train_op = train(train_loss, global_step, train_data_set.size)
 
             # Create a saver for writing training checkpoints.
             saver = tf.train.Saver(tf.all_variables())
 
             # Add accuracy and images to tesnorboard
-            tf.scalar_summary("training_accuracy", train_accuracy)
-            tf.scalar_summary("test_accuracy", test_accuracy)
-            tf.image_summary('train_images', train_images, max_images = 5)
-            tf.image_summary('test_images', test_images, max_images = 5)
+            tf.image_summary('image_train', train_data_set.images, max_images = 5)
+            tf.image_summary('image_test', test_data_set.images, max_images = 5)
     
             # Build the summary operation based on the TF collection of Summaries.
             summary_op = tf.merge_all_summaries()
@@ -199,9 +267,8 @@ if __name__ == '__main__':
                         break
                         
                     start_time = time.time()
-                    train_images_r, train_labels_r = sess.run([train_images, train_labels])
-                    train_feed = {images_placeholder: train_images_r,
-                                labels_placeholder: train_labels_r}
+                    train_images_r, train_labels_r = sess.run([train_data_set.images, train_data_set.labels])
+                    train_feed = {images_placeholder: train_images_r, labels_placeholder: train_labels_r}
                             
                     _, loss_value = sess.run([train_op, train_loss], feed_dict=train_feed)
                     duration = time.time() - start_time
@@ -217,30 +284,36 @@ if __name__ == '__main__':
                                     examples_per_sec, sec_per_batch))
                     
                     # Calculate accuracy and summary for tensorboard      
-                    if step % 100 == 0 or step == 0:            
-                        # create test images                   
-                        test_images_r, test_labels_r = sess.run([test_images, test_labels])
-                        test_feed = {images_placeholder: test_images_r,
-                                    labels_placeholder: test_labels_r}
+                    if step % 10 == 0 or step == 0:            
+                        train_images_r, train_labels_r = sess.run([train_data_set.images, train_data_set.labels])
+                        train_feed = {images_placeholder: train_images_r, labels_placeholder: train_labels_r}
+                        train_acc_val = train_accuracy.eval(feed_dict=train_feed, session=sess)
                         
-                        train_acc_val = sess.run([train_accuracy], feed_dict=train_feed)
-                        test_acc_val = sess.run([test_accuracy], feed_dict=test_feed)
-                                    
+                        summary = tf.Summary(value=[tf.Summary.Value(tag="accuracy_train", simple_value=train_acc_val.item())])
+                        summary_writer.add_summary(summary, step)
+                                                     
+                        test_images_r, test_labels_r = sess.run([test_data_set.images, test_data_set.labels])
+                        test_feed = {images_placeholder: test_images_r, labels_placeholder: test_labels_r}
+                        test_acc_val = test_accuracy.eval(feed_dict=test_feed, session=sess)
+                        
+                        summary = tf.Summary(value=[tf.Summary.Value(tag="accuracy_test", simple_value=test_acc_val.item())])
+                        summary_writer.add_summary(summary, step)
+    
                         print ('%s: train-accuracy %.2f, test-accuracy = %.2f' % (datetime.now(), 
-                                    train_acc_val[0], test_acc_val[0]))
+                                    train_acc_val, test_acc_val))
                                     
                         summary_str = sess.run([summary_op], feed_dict=train_feed)
-                        summary_writer.add_summary(summary_str[0], step)                    
+                        summary_writer.add_summary(summary_str[0], step)
 
                     # Save the model checkpoint periodically.
                     if step % 1000 == 0 or (step + 1) == FLAGS.max_steps:
                         checkpoint_path = os.path.join(FLAGS.log_dir, 'model.ckpt')
-                        saver.save(sess, checkpoint_path, global_step=step)
+                        saver.save(sess, checkpoint_path, global_step=global_step)
             
             
             except tf.errors.OutOfRangeError:
                 checkpoint_path = os.path.join(FLAGS.log_dir, 'model.ckpt')
-                saver.save(sess, checkpoint_path, global_step=step)
+                saver.save(sess, checkpoint_path, global_step=global_step)
                 print('Done training for %d epochs, %d steps.' % (FLAGS.num_epochs, step))
             
             finally:

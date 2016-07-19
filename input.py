@@ -7,7 +7,22 @@ import resize
 import random
 
 
+
+
 def read_labeled_image_batches(FLAGS):
+    class DataSet(object):
+        pass
+    
+    class DataSets(object):
+        pass
+        
+    train_data_set = DataSet()
+    test_data_set = DataSet()
+    data_sets = DataSet()
+    data_sets.train = train_data_set
+    data_sets.test = test_data_set
+    
+    
     # Reads pfathes of images together with their labels
     image_list, label_list = _read_labeled_image_list(FLAGS.img_dir)
     image_list, label_list = _shuffle_tow_arrays_together(image_list, label_list)   
@@ -18,10 +33,10 @@ def read_labeled_image_batches(FLAGS):
     test_images = image_list[:FLAGS.training_size]
     test_labels = label_list[:FLAGS.training_size]
     
-    num_train_data = len(training_labels)
-    num_test_data = len(test_labels)
-    print ("Num of training images: {0}".format(num_train_data))
-    print ("Num of testing images: {0}".format(num_test_data))
+    train_data_set.size = len(training_labels)
+    test_data_set.size = len(test_labels)
+    print ("Num of training images: {0}".format(train_data_set.size))
+    print ("Num of testing images: {0}".format(test_data_set.size))
 
     tf_train_images = ops.convert_to_tensor(training_images, dtype=dtypes.string)
     tf_train_labels = ops.convert_to_tensor(training_labels, dtype=dtypes.int32)
@@ -37,13 +52,11 @@ def read_labeled_image_batches(FLAGS):
     
     train_images_disk = _process_image(train_images_disk, FLAGS)
     test_images_disk = _process_image(train_images_disk, FLAGS) 
-
-
          
     # Ensure that the random shuffling has good mixing properties.
     num_preprocess_threads = 8
     min_fraction_of_examples_in_queue = 0.4
-    min_queue_examples = int(num_train_data * min_fraction_of_examples_in_queue) 
+    min_queue_examples = int(train_data_set.size * min_fraction_of_examples_in_queue) 
     
     print ('Filling queue with %d images before starting to train. '
          'This will take a few minutes.' % min_queue_examples)
@@ -64,8 +77,13 @@ def read_labeled_image_batches(FLAGS):
     #    min_after_dequeue=min_queue_examples,
     #    batch_size=FLAGS.batch_size)
     test_image_batch, test_label_batch = tf.train.batch([test_images_disk, test_labels_disk], batch_size=FLAGS.batch_size)
-                                        
-    return train_image_batch, train_label_batch, test_image_batch, test_label_batch
+            
+    train_data_set.images = train_image_batch
+    train_data_set.labels = train_label_batch
+    test_data_set.images = test_image_batch
+    test_data_set.labels = test_label_batch
+    
+    return data_sets                  
    
 
 def _read_labeled_image_list(path):
