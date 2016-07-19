@@ -15,16 +15,17 @@
 #
 # https://github.com/tensorflow/tensorflow/blob/master/tensorflow/models/image/mnist/convolutional.py
 # https://www.tensorflow.org/versions/r0.9/how_tos/variable_scope/index.html 
-# 
+# https://github.com/HamedMP/ImageFlow/blob/master/example_project/my_cifar_train.py
+#
 # ToDo:
+# - Refactoring (Training, Evaluation, Visualization, Input, Model)
 # - Get number of classes by number of folders of file system
 # - Evaluation -> https://www.tensorflow.org/versions/r0.9/how_tos/reading_data/index.html
 #      - The training process reads training input data and periodically writes checkpoint files with all the trained variables.
 #      - The evaluation process restores the checkpoint files into an inference model that reads validation input data.
 # - classify.py
 # - Dropout
-# - Test accuracy over all images, not only one batch
-# - Dimension as FLAG
+# - ... and somewhere inside "def train():" after calling "inference()" visualize conv1 layer = https://gist.github.com/kukuruza/03731dc494603ceab0c5
 #
 
 from __future__ import absolute_import
@@ -53,7 +54,7 @@ flags.DEFINE_float('learning_rate_decay_factor', 0.01, 'Learning rate decay fact
 flags.DEFINE_float('moving_average_decay', 0.9999, 'The decay to use for the moving average.')
 flags.DEFINE_integer('max_steps', 100000, 'Number of steps to run trainer.')
 flags.DEFINE_integer('batch_size', 100, 'Batch size. Must divide evenly into the dataset sizes.')
-flags.DEFINE_integer('training_size', 1000, 'Size of training data. Rest will be used for testing.')
+flags.DEFINE_integer('training_size', 10000, 'Size of training data. Rest will be used for testing.')
 flags.DEFINE_integer('num_epochs', 1000, 'Number of epochs to run trainer.')
 flags.DEFINE_string('log_dir', 'log_dir', 'Directory to put the log data.')
 flags.DEFINE_string('img_dir', 'mnist/', 'Directory of images.')
@@ -86,7 +87,7 @@ def loss(logits, labels):
 
     # The total loss is defined as the cross entropy loss plus all of the weight
     # decay terms (L2 loss).
-    return tf.add_n(tf.get_collection('losses'), name='total_loss')
+    return tf.add_n(tf.get_collection('losses'), name='loss_total')
   
   
 def _add_loss_summaries(total_loss):
@@ -169,6 +170,13 @@ def train(total_loss, global_step, num_images_per_epoch_of_train):
     with tf.control_dependencies([apply_gradient_op, variables_averages_op]):
         train_op = tf.no_op(name='train')
 
+    with tf.variable_scope('conv1') as scope_conv:
+        tf.get_variable_scope().reuse_variables()
+        weights = tf.get_variable('weights')
+        grid_x = grid_y = 8   # to get a square grid for 64 conv1 features
+        grid = put_kernels_on_grid (weights, grid_y, grid_x)
+        tf.image_summary('conv1/features', grid, max_images=1)
+
     return train_op
       
       
@@ -220,6 +228,95 @@ def do_eval(sess,
     return precision
 
 
+# https://gist.github.com/kukuruza/03731dc494603ceab0c5
+def put_kernels_on_grid (kernel, grid_Y, grid_X, pad=1):
+    '''Visualize conv. features as an image (mostly for the 1st layer).
+    Place kernel into a grid, with some paddings between adjacent filters.
+    Args:
+      kernel:            tensor of shape [Y, X, NumChannels, NumKernels]
+      (grid_Y, grid_X):  shape of the grid. Require: NumKernels == grid_Y * grid_X
+                           User is responsible of how to break into two multiples.
+      pad:               number of black pixels around each filter (between them)
+    
+    Return:
+      Tensor of shape [(Y+pad)*grid_Y, (X+pad)*grid_X, NumChannels, 1].
+    '''
+    # pad X and Y
+    x1 = tf.pad(kernel, tf.constant( [[pad,0],[pad,0],[0,0],[0,0]] ))
+
+    # X and Y dimensions, w.r.t. padding
+    Y = kernel.get_shape()[0] + pad
+    X = kernel.get_shape()[1] + pad
+
+    # put NumKernels to the 1st dimension
+    x2 = tf.transpose(x1, (3, 0, 1, 2))
+    # organize grid on Y axis
+    x3 = tf.reshape(x2, tf.pack([grid_X, Y * grid_Y, X, 3]))
+    
+    # switch X and Y axes
+    x4 = tf.transpose(x3, (0, 2, 1, 3))
+    # organize grid on X axis
+    x5 = tf.reshape(x4, tf.pack([1, X * grid_X, Y * grid_Y, 3]))
+    
+    # back to normal order (not combining with the next step for clarity)
+    x6 = tf.transpose(x5, (2, 1, 3, 0))
+
+    # to tf.image_summary order [batch_size, height, width, channels],
+    #   where in this case batch_size == 1
+    x7 = tf.transpose(x6, (3, 0, 1, 2))
+
+    # scale to [0, 1]
+    x_min = tf.reduce_min(x7)
+    x_max = tf.reduce_max(x7)
+    x8 = (x7 - x_min) / (x_max - x_min)
+
+    return x8
+    
+ 
+def put_kernels_on_grid (kernel, grid_Y, grid_X, pad=1):
+    '''Visualize conv. features as an image (mostly for the 1st layer).
+    Place kernel into a grid, with some paddings between adjacent filters.
+    Args:
+      kernel:            tensor of shape [Y, X, NumChannels, NumKernels]
+      (grid_Y, grid_X):  shape of the grid. Require: NumKernels == grid_Y * grid_X
+                           User is responsible of how to break into two multiples.
+      pad:               number of black pixels around each filter (between them)
+    
+    Return:
+      Tensor of shape [(Y+pad)*grid_Y, (X+pad)*grid_X, NumChannels, 1].
+    '''
+    # pad X and Y
+    x1 = tf.pad(kernel, tf.constant( [[pad,0],[pad,0],[0,0],[0,0]] ))
+
+    # X and Y dimensions, w.r.t. padding
+    Y = kernel.get_shape()[0] + pad
+    X = kernel.get_shape()[1] + pad
+
+    # put NumKernels to the 1st dimension
+    x2 = tf.transpose(x1, (3, 0, 1, 2))
+    # organize grid on Y axis
+    x3 = tf.reshape(x2, tf.pack([grid_X, Y * grid_Y, X, 3]))
+    
+    # switch X and Y axes
+    x4 = tf.transpose(x3, (0, 2, 1, 3))
+    # organize grid on X axis
+    x5 = tf.reshape(x4, tf.pack([1, X * grid_X, Y * grid_Y, 3]))
+    
+    # back to normal order (not combining with the next step for clarity)
+    x6 = tf.transpose(x5, (2, 1, 3, 0))
+
+    # to tf.image_summary order [batch_size, height, width, channels],
+    #   where in this case batch_size == 1
+    x7 = tf.transpose(x6, (3, 0, 1, 2))
+
+    # scale to [0, 1]
+    x_min = tf.reduce_min(x7)
+    x_max = tf.reduce_max(x7)
+    x8 = (x7 - x_min) / (x_max - x_min)
+
+    return x8
+    
+        
 #
 # M A I N
 #
@@ -243,14 +340,9 @@ if __name__ == '__main__':
             # We use the same weight's etc. for the training and testing
             logits = model.inference(images_placeholder, FLAGS)
             
-            # Claculate training and testing accuracy -> check for overfitting
-            train_correct = tf.nn.in_top_k(logits, labels_placeholder, 1) 
-            train_correct = tf.to_float(train_correct)
-            train_accuracy = tf.reduce_mean(train_correct)
-            
-            test_correct = tf.nn.in_top_k(logits, labels_placeholder, 1)
-            test_correct = tf.to_float(test_correct)
-            test_accuracy = tf.reduce_mean(test_correct)
+            # Accuracy
+            correct = tf.nn.in_top_k(logits, labels_placeholder, 1)
+            eval_correct = tf.reduce_sum(tf.cast(correct, tf.int32))
 
             # Add to the Graph the Ops for loss calculation.
             train_loss = loss(logits, labels_placeholder)
@@ -262,10 +354,10 @@ if __name__ == '__main__':
             # Create a saver for writing training checkpoints.
             saver = tf.train.Saver(tf.all_variables())
 
-            # Add accuracy and images to tesnorboard
+            # Add tensorboard summaries
             tf.image_summary('image_train', train_data_set.images, max_images = 5)
             tf.image_summary('image_test', test_data_set.images, max_images = 5)
-    
+  
             # Build the summary operation based on the TF collection of Summaries.
             summary_op = tf.merge_all_summaries()
             
@@ -280,18 +372,12 @@ if __name__ == '__main__':
             sess.run(init)
     
             # Start the queue runners.
-            # https://github.com/HamedMP/ImageFlow/blob/master/example_project/my_cifar_train.py
             coord = tf.train.Coordinator()
             threads = tf.train.start_queue_runners(sess=sess, coord=coord)
     
             # Instantiate a SummaryWriter to output summaries and the Graph.
             summary_writer = tf.train.SummaryWriter(FLAGS.log_dir, sess.graph)
-            
-            correct = tf.nn.in_top_k(logits, labels_placeholder, 1)
-            # Return the number of true entries.
-            eval_correct = tf.reduce_sum(tf.cast(correct, tf.int32))
-            
-            
+           
   
             try:
                 # Start the training loop.
