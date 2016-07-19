@@ -39,6 +39,8 @@ def inference(images, FLAGS):
         bias = tf.nn.bias_add(conv, biases)
         conv1 = tf.nn.relu(bias, name=scope.name)
         _activation_summary(conv1)
+        
+        # Visualization of conv1 layer as image in tensorboard
         grid_x = grid_y = 8   # to get a square grid for 64 conv1 features
         grid = put_kernels_on_grid (kernel, grid_y, grid_x)
         tf.image_summary('conv1/features', grid, max_images=1)

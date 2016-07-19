@@ -17,14 +17,14 @@
 # https://www.tensorflow.org/versions/r0.9/how_tos/variable_scope/index.html 
 # 
 # ToDo:
-# - Create Class for dataset -> contains images, labels and # for testing, training and evaluation
-# - Get number of classes by folders
+# - Get number of classes by number of folders of file system
 # - Evaluation -> https://www.tensorflow.org/versions/r0.9/how_tos/reading_data/index.html
 #      - The training process reads training input data and periodically writes checkpoint files with all the trained variables.
 #      - The evaluation process restores the checkpoint files into an inference model that reads validation input data.
-# - Display Conv layer 1 -> steerable filters?
 # - classify.py
 # - Dropout
+# - Test accuracy over all images, not only one batch
+# - Dimension as FLAG
 #
 
 from __future__ import absolute_import
@@ -47,24 +47,23 @@ import model
 # Basic model parameters as external flags.
 flags = tf.app.flags
 FLAGS = flags.FLAGS
-flags.DEFINE_float('initial_learning_rate', 0.1, 'Initial learning rate.')
-flags.DEFINE_integer('num_epochs_per_decay', 100, 'Epochs after which learning rate decays.')
-flags.DEFINE_float('learning_rate_decay_factor', 0.1, 'Learning rate decay factor.')
+flags.DEFINE_float('initial_learning_rate', 0.01, 'Initial learning rate.')
+flags.DEFINE_integer('num_epochs_per_decay', 50, 'Epochs after which learning rate decays.')
+flags.DEFINE_float('learning_rate_decay_factor', 0.01, 'Learning rate decay factor.')
 flags.DEFINE_float('moving_average_decay', 0.9999, 'The decay to use for the moving average.')
 flags.DEFINE_integer('max_steps', 100000, 'Number of steps to run trainer.')
-flags.DEFINE_integer('batch_size', 256, 'Batch size. Must divide evenly into the dataset sizes.')
-flags.DEFINE_integer('training_size', 2500, 'Size of training data. Rest will be used for testing')
+flags.DEFINE_integer('batch_size', 100, 'Batch size. Must divide evenly into the dataset sizes.')
+flags.DEFINE_integer('training_size', 1000, 'Size of training data. Rest will be used for testing.')
 flags.DEFINE_integer('num_epochs', 1000, 'Number of epochs to run trainer.')
 flags.DEFINE_string('log_dir', 'log_dir', 'Directory to put the log data.')
 flags.DEFINE_string('img_dir', 'mnist/', 'Directory of images.')
-#flags.DEFINE_integer('num_examples_per_epoch_for_train', 10000, 'Number of examples per epoch for training.')
-flags.DEFINE_integer('orig_image_width', 28, 'x, y size of image')
-flags.DEFINE_integer('orig_image_height', 28, 'x, y size of image')
-flags.DEFINE_integer('image_width', 28, 'x, y size of image')
-flags.DEFINE_integer('image_height', 28, 'x, y size of image')
-flags.DEFINE_integer('image_pixels', 28 * 28, 'num of pixels per image')
+flags.DEFINE_integer('orig_image_width', 28, 'x, y size of image.')
+flags.DEFINE_integer('orig_image_height', 28, 'x, y size of image.')
+flags.DEFINE_integer('image_width', 28, 'x, y size of image.')
+flags.DEFINE_integer('image_height', 28, 'x, y size of image.')
+flags.DEFINE_integer('image_pixels', 28 * 28, 'num of pixels per image.')
 flags.DEFINE_integer('num_classes', 10, 'Number of image classes')   
-   
+
    
 def loss(logits, labels):
     """Add L2Loss to all the trainable variables.
@@ -191,7 +190,35 @@ def placeholder_inputs(batch_size):
     labels_placeholder = tf.placeholder(tf.int32, shape=FLAGS.batch_size)
     return images_placeholder, labels_placeholder
 
-  
+
+def do_eval(sess,
+            eval_correct,
+            images_placeholder,
+            labels_placeholder,
+            data_set):
+    """Runs one evaluation against the full epoch of data.
+    Args:
+        sess: The session in which the model has been trained.
+        eval_correct: The Tensor that returns the number of correct predictions.
+        images_placeholder: The images placeholder.
+        labels_placeholder: The labels placeholder.
+        data_set: The set of images and labels to evaluate, from
+        input_data.read_data_sets().
+    """
+    # And run one epoch of eval.
+    true_count = 0  # Counts the number of correct predictions.
+    steps_per_epoch = data_set.size // FLAGS.batch_size
+    num_examples = steps_per_epoch * FLAGS.batch_size
+    for step in xrange(steps_per_epoch):
+        images_r, labels_r = sess.run([data_set.images, data_set.labels])
+        feed_dict = {images_placeholder: images_r, labels_placeholder: labels_r}
+        true_count += sess.run(eval_correct, feed_dict=feed_dict)
+    precision = true_count / num_examples
+    print('  Num examples: %d  Num correct: %d  Precision @ 1: %0.04f' %
+            (num_examples, true_count, precision)) 
+    
+    return precision
+
 
 #
 # M A I N
@@ -260,6 +287,12 @@ if __name__ == '__main__':
             # Instantiate a SummaryWriter to output summaries and the Graph.
             summary_writer = tf.train.SummaryWriter(FLAGS.log_dir, sess.graph)
             
+            correct = tf.nn.in_top_k(logits, labels_placeholder, 1)
+            # Return the number of true entries.
+            eval_correct = tf.reduce_sum(tf.cast(correct, tf.int32))
+            
+            
+  
             try:
                 # Start the training loop.
                 for step in xrange(FLAGS.max_steps):
@@ -267,10 +300,11 @@ if __name__ == '__main__':
                         break
                         
                     start_time = time.time()
+                    
                     train_images_r, train_labels_r = sess.run([train_data_set.images, train_data_set.labels])
                     train_feed = {images_placeholder: train_images_r, labels_placeholder: train_labels_r}
-                            
                     _, loss_value = sess.run([train_op, train_loss], feed_dict=train_feed)
+                    
                     duration = time.time() - start_time
 
                     # Print step loss etc.
@@ -283,27 +317,20 @@ if __name__ == '__main__':
                                     'sec/batch)' % (datetime.now(), step, loss_value,
                                     examples_per_sec, sec_per_batch))
                     
-                    # Calculate accuracy and summary for tensorboard      
-                    if step % 10 == 0 or step == 0:            
-                        train_images_r, train_labels_r = sess.run([train_data_set.images, train_data_set.labels])
-                        train_feed = {images_placeholder: train_images_r, labels_placeholder: train_labels_r}
-                        train_acc_val = train_accuracy.eval(feed_dict=train_feed, session=sess)
-                        
-                        summary = tf.Summary(value=[tf.Summary.Value(tag="accuracy_train", simple_value=train_acc_val.item())])
-                        summary_writer.add_summary(summary, step)
-                                                     
-                        test_images_r, test_labels_r = sess.run([test_data_set.images, test_data_set.labels])
-                        test_feed = {images_placeholder: test_images_r, labels_placeholder: test_labels_r}
-                        test_acc_val = test_accuracy.eval(feed_dict=test_feed, session=sess)
-                        
-                        summary = tf.Summary(value=[tf.Summary.Value(tag="accuracy_test", simple_value=test_acc_val.item())])
-                        summary_writer.add_summary(summary, step)
-    
-                        print ('%s: train-accuracy %.2f, test-accuracy = %.2f' % (datetime.now(), 
-                                    train_acc_val, test_acc_val))
-                                    
+                    # Write summary
+                    if step % 100 == 0:
                         summary_str = sess.run([summary_op], feed_dict=train_feed)
                         summary_writer.add_summary(summary_str[0], step)
+                        
+                    # Calculate accuracy      
+                    if step % 500 == 0:                                 
+                        precision = do_eval(sess, eval_correct, images_placeholder, labels_placeholder, test_data_set)
+                        summary = tf.Summary(value=[tf.Summary.Value(tag="accuracy_test", simple_value=precision)])
+                        summary_writer.add_summary(summary, step) 
+                        
+                        precision = do_eval(sess, eval_correct, images_placeholder, labels_placeholder, train_data_set)
+                        summary = tf.Summary(value=[tf.Summary.Value(tag="accuracy_train", simple_value=precision)])
+                        summary_writer.add_summary(summary, step) 
 
                     # Save the model checkpoint periodically.
                     if step % 1000 == 0 or (step + 1) == FLAGS.max_steps:
