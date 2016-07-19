@@ -49,22 +49,23 @@ import model
 # Basic model parameters as external flags.
 flags = tf.app.flags
 FLAGS = flags.FLAGS
-flags.DEFINE_float('initial_learning_rate', 0.01, 'Initial learning rate.')
+flags.DEFINE_float('initial_learning_rate', 0.001, 'Initial learning rate.')
 flags.DEFINE_integer('num_epochs_per_decay', 50, 'Epochs after which learning rate decays.')
-flags.DEFINE_float('learning_rate_decay_factor', 0.01, 'Learning rate decay factor.')
+flags.DEFINE_float('learning_rate_decay_factor', 0.001, 'Learning rate decay factor.')
 flags.DEFINE_float('moving_average_decay', 0.9999, 'The decay to use for the moving average.')
 flags.DEFINE_integer('max_steps', 100000, 'Number of steps to run trainer.')
-flags.DEFINE_integer('batch_size', 100, 'Batch size. Must divide evenly into the dataset sizes.')
-flags.DEFINE_integer('training_size', 10000, 'Size of training data. Rest will be used for testing.')
+flags.DEFINE_integer('batch_size', 64, 'Batch size. Must divide evenly into the dataset sizes.')
+flags.DEFINE_integer('training_size', 2000, 'Size of training data. Rest will be used for testing.')
 flags.DEFINE_integer('num_epochs', 1000, 'Number of epochs to run trainer.')
 flags.DEFINE_string('log_dir', 'log_dir', 'Directory to put the log data.')
-flags.DEFINE_string('img_dir', 'mnist/', 'Directory of images.')
-flags.DEFINE_integer('orig_image_width', 28, 'x, y size of image.')
-flags.DEFINE_integer('orig_image_height', 28, 'x, y size of image.')
-flags.DEFINE_integer('image_width', 28, 'x, y size of image.')
-flags.DEFINE_integer('image_height', 28, 'x, y size of image.')
-flags.DEFINE_integer('image_pixels', 28 * 28, 'num of pixels per image.')
-flags.DEFINE_integer('num_classes', 10, 'Number of image classes')   
+flags.DEFINE_string('img_dir', 'car_interclass/', 'Directory of images.')
+flags.DEFINE_integer('orig_image_width', 120, 'x, y size of image.')
+flags.DEFINE_integer('orig_image_height', 75, 'x, y size of image.')
+flags.DEFINE_integer('image_width', 120, 'x, y size of image.')
+flags.DEFINE_integer('image_height', 75, 'x, y size of image.')
+flags.DEFINE_integer('image_pixels', 120 * 75, 'num of pixels per image.')
+flags.DEFINE_integer('num_classes', 3, 'Number of image classes')  
+flags.DEFINE_boolean('is_jpeg', True, 'jpeg = True, png = False')   
 
    
 def loss(logits, labels):
@@ -222,59 +223,7 @@ def do_eval(sess,
     return precision
 
 
-# https://gist.github.com/kukuruza/03731dc494603ceab0c5
-def put_kernels_on_grid (kernel, grid_Y, grid_X, pad=1):
-    '''Visualize conv. features as an image (mostly for the 1st layer).
-    Place kernel into a grid, with some paddings between adjacent filters.
-    Args:
-      kernel:            tensor of shape [Y, X, NumChannels, NumKernels]
-      (grid_Y, grid_X):  shape of the grid. Require: NumKernels == grid_Y * grid_X
-                           User is responsible of how to break into two multiples.
-      pad:               number of black pixels around each filter (between them)
-    
-    Return:
-      Tensor of shape [(Y+pad)*grid_Y, (X+pad)*grid_X, NumChannels, 1].
-    '''
-    # pad X and Y
-    x1 = tf.pad(kernel, tf.constant( [[pad,0],[pad,0],[0,0],[0,0]] ))
 
-    # X and Y dimensions, w.r.t. padding
-    Y = kernel.get_shape()[0] + pad
-    X = kernel.get_shape()[1] + pad
-
-    # put NumKernels to the 1st dimension
-    x2 = tf.transpose(x1, (3, 0, 1, 2))
-    # organize grid on Y axis
-    x3 = tf.reshape(x2, tf.pack([grid_X, Y * grid_Y, X, 3]))
-    
-    # switch X and Y axes
-    x4 = tf.transpose(x3, (0, 2, 1, 3))
-    # organize grid on X axis
-    x5 = tf.reshape(x4, tf.pack([1, X * grid_X, Y * grid_Y, 3]))
-    
-    # back to normal order (not combining with the next step for clarity)
-    x6 = tf.transpose(x5, (2, 1, 3, 0))
-
-    # to tf.image_summary order [batch_size, height, width, channels],
-    #   where in this case batch_size == 1
-    x7 = tf.transpose(x6, (3, 0, 1, 2))
-
-    # scale to [0, 1]
-    x_min = tf.reduce_min(x7)
-    x_max = tf.reduce_max(x7)
-    x8 = (x7 - x_min) / (x_max - x_min)
-
-    return x8
-    
-def get_kernel_image_summary(step):
-    # Add kernel image for conv1 layer.
-    with tf.variable_scope('conv1') as scope_conv:
-        tf.get_variable_scope().reuse_variables()
-        weights = tf.get_variable('weights')
-        grid_x = grid_y = 8   # to get a square grid for 64 conv1 features
-        grid = put_kernels_on_grid (weights, grid_y, grid_x)
-        return tf.image_summary("conv1/features/{0}".format(str(step)), grid, max_images=1)
-        
                 
 #
 # M A I N
@@ -364,10 +313,8 @@ if __name__ == '__main__':
                     
                     # Write summary
                     if step % 100 == 0:
-                        summary_kernel = get_kernel_image_summary(step)
-                        summary_str, summary_kernel_str = sess.run([summary_op, summary_kernel], feed_dict=train_feed)
-                        summary_writer.add_summary(summary_str, step)
-                        summary_writer.add_summary(summary_kernel_str, step)
+                        summary_str = sess.run([summary_op], feed_dict=train_feed)
+                        summary_writer.add_summary(summary_str[0], step)
                         
                     # Calculate accuracy      
                     if step % 500 == 0:                                 

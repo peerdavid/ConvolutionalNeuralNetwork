@@ -143,13 +143,18 @@ def _read_images_from_disk(input_queue, FLAGS):
     images = input_queue[0]
     labels = input_queue[1]
     file_contents = tf.read_file(images)
-    decoded_images = tf.image.decode_png(file_contents, channels=3)   
+    
+    if FLAGS.is_jpeg:
+        decoded_images = tf.image.decode_jpeg(file_contents, channels=3)   
+    else:
+        decoded_images = tf.image.decode_png(file_contents, channels=3)   
     decoded_images.set_shape([FLAGS.orig_image_height, FLAGS.orig_image_width, 3])
     
     return decoded_images, labels 
 
 
 # mogrify -gravity Center -extent 240x150 -background black -colorspace RGB *jpg
+# mogrify -resize 120x75 -quality 100 -format jpg *.jpg
 def _process_image(image, FLAGS):
     print("Processing images.")
     float_images = tf.cast(image, tf.float32)
