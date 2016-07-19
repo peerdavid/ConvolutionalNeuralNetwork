@@ -162,14 +162,6 @@ def train(total_loss, global_step, num_images_per_epoch_of_train):
     for grad, var in grads:
         if grad is not None:
             tf.histogram_summary(var.op.name + '/gradients', grad)
-    
-    # Add kernel image for conv1 layer.
-    with tf.variable_scope('conv1') as scope_conv:
-        tf.get_variable_scope().reuse_variables()
-        weights = tf.get_variable('weights')
-        grid_x = grid_y = 8   # to get a square grid for 64 conv1 features
-        grid = put_kernels_on_grid (weights, grid_y, grid_x)
-        tf.image_summary('conv1/features', grid, max_images=1)
         
     # Track the moving averages of all trainable variables.
     variable_averages = tf.train.ExponentialMovingAverage(
@@ -274,7 +266,16 @@ def put_kernels_on_grid (kernel, grid_Y, grid_X, pad=1):
 
     return x8
     
+def get_kernel_image_summary(step):
+    # Add kernel image for conv1 layer.
+    with tf.variable_scope('conv1') as scope_conv:
+        tf.get_variable_scope().reuse_variables()
+        weights = tf.get_variable('weights')
+        grid_x = grid_y = 8   # to get a square grid for 64 conv1 features
+        grid = put_kernels_on_grid (weights, grid_y, grid_x)
+        return tf.image_summary("conv1/features/{0}".format(str(step)), grid, max_images=1)
         
+                
 #
 # M A I N
 #
@@ -297,7 +298,7 @@ if __name__ == '__main__':
             # Build a Graph that computes predictions from the inference model.
             # We use the same weight's etc. for the training and testing
             logits = model.inference(images_placeholder, FLAGS)
-            
+                            
             # Accuracy
             correct = tf.nn.in_top_k(logits, labels_placeholder, 1)
             eval_correct = tf.reduce_sum(tf.cast(correct, tf.int32))
@@ -363,8 +364,10 @@ if __name__ == '__main__':
                     
                     # Write summary
                     if step % 100 == 0:
-                        summary_str = sess.run([summary_op], feed_dict=train_feed)
-                        summary_writer.add_summary(summary_str[0], step)
+                        summary_kernel = get_kernel_image_summary(step)
+                        summary_str, summary_kernel_str = sess.run([summary_op, summary_kernel], feed_dict=train_feed)
+                        summary_writer.add_summary(summary_str, step)
+                        summary_writer.add_summary(summary_kernel_str, step)
                         
                     # Calculate accuracy      
                     if step % 500 == 0:                                 
