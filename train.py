@@ -36,9 +36,9 @@
 # - Asser loss nan
 # 
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
+#from __future__ import absolute_import
+#from __future__ import division
+#from __future__ import print_function
 
 
 import os
@@ -51,9 +51,12 @@ from six.moves import xrange
 import tensorflow as tf
 import input
 import model
+import evaluation
+import utils
 
-
-# Basic model parameters as external flags.
+#
+# Hyperparameters
+#
 flags = tf.app.flags
 FLAGS = flags.FLAGS
 flags.DEFINE_float('initial_learning_rate', 0.01, 'Initial learning rate.')
@@ -71,11 +74,20 @@ flags.DEFINE_integer('orig_image_height', 28, 'x, y size of image.')
 flags.DEFINE_integer('image_width', 28, 'x, y size of image.')
 flags.DEFINE_integer('image_height', 28, 'x, y size of image.')
 flags.DEFINE_integer('image_pixels', 28 * 28, 'num of pixels per image.')
-flags.DEFINE_integer('num_classes', 3, 'Number of image classes')  
+flags.DEFINE_integer('num_classes', 10, 'Number of image classes')  
 flags.DEFINE_boolean('is_jpeg', False, 'jpeg = True, png = False')   
+  
+      
+#
+# Helper functions
+#          
+def _create_placeholder_inputs(batch_size, image_height, image_width):
+    images_pl = tf.placeholder(tf.float32, shape=(batch_size, image_height, image_width, 3))
+    labels_pl = tf.placeholder(tf.int32, shape=batch_size)
+    return images_pl, labels_pl
 
-   
-def loss(logits, labels):
+
+def _create_train_loss(logits, labels):
     """Add L2Loss to all the trainable variables.
 
     Add summary for "Loss" and "Loss/avg".
@@ -97,36 +109,9 @@ def loss(logits, labels):
     # The total loss is defined as the cross entropy loss plus all of the weight
     # decay terms (L2 loss).
     return tf.add_n(tf.get_collection('losses'), name='loss_total')
-  
-  
-def _add_loss_summaries(total_loss):
-    """Add summaries for losses in CIFAR-10 model.
-
-    Generates moving average for all losses and associated summaries for
-    visualizing the performance of the network.
-
-    Args:
-        total_loss: Total loss from loss().
-    Returns:
-        loss_averages_op: op for generating moving averages of losses.
-    """
-    # Compute the moving average of all individual losses and the total loss.
-    loss_averages = tf.train.ExponentialMovingAverage(0.9, name='avg')
-    losses = tf.get_collection('losses')
-    loss_averages_op = loss_averages.apply(losses + [total_loss])
-
-    # Attach a scalar summary to all individual losses and the total loss; do the
-    # same for the averaged version of the losses.
-    for l in losses + [total_loss]:
-        # Name each loss as '(raw)' and name the moving average version of the loss
-        # as the original loss name.
-        tf.scalar_summary(l.op.name +' (raw)', l)
-        tf.scalar_summary(l.op.name, loss_averages.average(l))
-
-    return loss_averages_op
     
     
-def train(total_loss, global_step, num_images_per_epoch_of_train):
+def _create_train_op(total_loss, global_step, num_images_per_epoch_of_train):
     """Train CIFAR-10 model.
 
     Create an optimizer and apply to all trainable variables. Add moving
@@ -177,61 +162,38 @@ def train(total_loss, global_step, num_images_per_epoch_of_train):
     variables_averages_op = variable_averages.apply(tf.trainable_variables())
 
     with tf.control_dependencies([apply_gradient_op, variables_averages_op]):
-        train_op = tf.no_op(name='train')
+        ret = tf.no_op(name='train')
 
-    return train_op
-      
-      
-def placeholder_inputs(batch_size):
-    """Generate placeholder variables to represent the the input tensors.
-    These placeholders are used as inputs by the rest of the model building
-    code and will be fed from the downloaded ckpt in the .run() loop, below.
+    return ret
+
+  
+def _add_loss_summaries(total_loss):
+    """Add summaries for losses in CIFAR-10 model.
+
+    Generates moving average for all losses and associated summaries for
+    visualizing the performance of the network.
+
     Args:
-        batch_size: The batch size will be baked into both placeholders.
+        total_loss: Total loss from loss().
     Returns:
-        images_placeholder: Images placeholder.
-        labels_placeholder: Labels placeholder.
+        loss_averages_op: op for generating moving averages of losses.
     """
-    # Note that the shapes of the placeholders match the shapes of the full
-    # image and label tensors, except the first dimension is now batch_size
-    # rather than the full size of the train or test ckpt sets.
-    # batch_size = -1
-    images_placeholder = tf.placeholder(tf.float32, shape=(FLAGS.batch_size, FLAGS.image_height, FLAGS.image_width, 3))
-    labels_placeholder = tf.placeholder(tf.int32, shape=FLAGS.batch_size)
-    return images_placeholder, labels_placeholder
+    # Compute the moving average of all individual losses and the total loss.
+    loss_averages = tf.train.ExponentialMovingAverage(0.9, name='avg')
+    losses = tf.get_collection('losses')
+    loss_averages_op = loss_averages.apply(losses + [total_loss])
 
+    # Attach a scalar summary to all individual losses and the total loss; do the
+    # same for the averaged version of the losses.
+    for l in losses + [total_loss]:
+        # Name each loss as '(raw)' and name the moving average version of the loss
+        # as the original loss name.
+        tf.scalar_summary(l.op.name +' (raw)', l)
+        tf.scalar_summary(l.op.name, loss_averages.average(l))
 
-def do_eval(sess,
-            eval_correct,
-            images_placeholder,
-            labels_placeholder,
-            data_set):
-    """Runs one evaluation against the full epoch of data.
-    Args:
-        sess: The session in which the model has been trained.
-        eval_correct: The Tensor that returns the number of correct predictions.
-        images_placeholder: The images placeholder.
-        labels_placeholder: The labels placeholder.
-        data_set: The set of images and labels to evaluate, from
-        input_data.read_data_sets().
-    """
-    # And run one epoch of eval.
-    true_count = 0  # Counts the number of correct predictions.
-    steps_per_epoch = data_set.size // FLAGS.batch_size
-    num_examples = steps_per_epoch * FLAGS.batch_size
-    for step in xrange(steps_per_epoch):
-        images_r, labels_r = sess.run([data_set.images, data_set.labels])
-        feed_dict = {images_placeholder: images_r, labels_placeholder: labels_r}
-        true_count += sess.run(eval_correct, feed_dict=feed_dict)
-    precision = true_count / num_examples
-    print('  Num examples: %d  Num correct: %d  Precision @ 1: %0.04f' %
-            (num_examples, true_count, precision)) 
+    return loss_averages_op
     
-    return precision
-
-
-
-                
+        
 #
 # M A I N
 #
@@ -249,7 +211,7 @@ if __name__ == '__main__':
             train_data_set = data_sets.train
             test_data_set = data_sets.test
                       
-            images_placeholder, labels_placeholder = placeholder_inputs(FLAGS.batch_size)
+            images_placeholder, labels_placeholder = _create_placeholder_inputs(FLAGS.batch_size, FLAGS.image_height, FLAGS.image_width)
                     
             # Build a Graph that computes predictions from the inference model.
             # We use the same weight's etc. for the training and testing
@@ -260,11 +222,11 @@ if __name__ == '__main__':
             eval_correct = tf.reduce_sum(tf.cast(correct, tf.int32))
 
             # Add to the Graph the Ops for loss calculation.
-            train_loss = loss(logits, labels_placeholder)
+            train_loss = _create_train_loss(logits, labels_placeholder)
 
             # Add to the Graph the Ops that calculate and apply gradients.
             global_step = tf.Variable(0, trainable=False)
-            train_op = train(train_loss, global_step, train_data_set.size)
+            train_op = _create_train_op(train_loss, global_step, train_data_set.size)
 
             # Create a saver for writing training checkpoints.
             saver = tf.train.Saver(tf.all_variables())
@@ -293,7 +255,6 @@ if __name__ == '__main__':
             # Instantiate a SummaryWriter to output summaries and the Graph.
             summary_writer = tf.train.SummaryWriter(FLAGS.log_dir, sess.graph)
            
-  
             try:
                 # Start the training loop.
                 for step in xrange(FLAGS.max_steps):
@@ -302,15 +263,14 @@ if __name__ == '__main__':
                         
                     start_time = time.time()
                     
-                    train_images_r, train_labels_r = sess.run([train_data_set.images, train_data_set.labels])
-                    train_feed = {images_placeholder: train_images_r, labels_placeholder: train_labels_r}
+                    train_feed = utils.create_feed_data(sess, images_placeholder, labels_placeholder, train_data_set)
                     _, loss_value = sess.run([train_op, train_loss], feed_dict=train_feed)
                     
                     duration = time.time() - start_time
 
                     # Print step loss etc.
                     if step % 10 == 0:
-                        num_examples_per_step = FLAGS.batch_size
+                        num_examples_per_step = train_data_set.batch_size
                         examples_per_sec = num_examples_per_step / duration
                         sec_per_batch = float(duration)
 
@@ -325,11 +285,11 @@ if __name__ == '__main__':
                         
                     # Calculate accuracy      
                     if step % 500 == 0:                                 
-                        precision = do_eval(sess, eval_correct, images_placeholder, labels_placeholder, test_data_set)
+                        precision = evaluation.do_eval(sess, eval_correct, images_placeholder, labels_placeholder, test_data_set)
                         summary = tf.Summary(value=[tf.Summary.Value(tag="accuracy_test", simple_value=precision)])
                         summary_writer.add_summary(summary, step) 
                         
-                        precision = do_eval(sess, eval_correct, images_placeholder, labels_placeholder, train_data_set)
+                        precision = evaluation.do_eval(sess, eval_correct, images_placeholder, labels_placeholder, train_data_set)
                         summary = tf.Summary(value=[tf.Summary.Value(tag="accuracy_train", simple_value=precision)])
                         summary_writer.add_summary(summary, step) 
 
@@ -357,4 +317,3 @@ if __name__ == '__main__':
 
     finally:
         print("\nDone.\n")
-

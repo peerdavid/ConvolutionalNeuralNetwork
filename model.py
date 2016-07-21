@@ -3,7 +3,6 @@ import re
 import tensorflow as tf
 
 
-
 # If a model is trained with multiple GPUs, prefix all Op names with tower_name
 # to differentiate the operations. Note that this prefix is removed from the
 # names of the summaries when visualizing a model.

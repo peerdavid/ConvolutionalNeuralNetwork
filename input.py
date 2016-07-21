@@ -51,9 +51,16 @@ def read_labeled_image_batches(FLAGS):
     
     # Create training batches.
     # Not shuffled because it is already shuffled above. 
-    train_data_set.images, train_data_set.labels = tf.train.batch([train_images_disk, train_labels_disk], batch_size=FLAGS.batch_size)
-    test_data_set.images, test_data_set.labels = tf.train.batch([test_images_disk, test_labels_disk], batch_size=FLAGS.batch_size)
-            
+    train_image_batch, train_label_batch = tf.train.batch([train_images_disk, train_labels_disk], batch_size=FLAGS.batch_size)
+    test_image_batch, test_label_batch = tf.train.batch([test_images_disk, test_labels_disk], batch_size=FLAGS.batch_size)
+    
+    train_data_set.batch_size = FLAGS.batch_size
+    train_data_set.images = train_image_batch
+    train_data_set.labels = train_label_batch
+    test_data_set.batch_size = FLAGS.batch_size
+    test_data_set.images = test_image_batch
+    test_data_set.labels = test_label_batch
+    
     return data_sets                  
    
 
@@ -109,8 +116,3 @@ def _read_images_from_disk(input_queue, FLAGS):
     images.set_shape([FLAGS.orig_image_height, FLAGS.orig_image_width, 3])
     
     return images, labels_queue 
-
-
-
-
-

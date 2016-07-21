@@ -2,11 +2,11 @@
 	"version": "0.2.0",
 	"configurations": [
 		{
-			"name": "Python3",
+			"name": "train.py",
 			"type": "python",
 			"request": "launch",
 			"stopOnEntry": true,
-			"program": "${workspaceRoot}/train.py"//"${file}",
+			"program": "${workspaceRoot}/train.py",
 			"pythonPath": "/usr/bin/python3",
 			"debugOptions": [
 				"WaitOnAbnormalExit",
