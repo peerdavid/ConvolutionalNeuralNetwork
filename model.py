@@ -8,7 +8,7 @@ import tensorflow as tf
 # names of the summaries when visualizing a model.
 TOWER_NAME = 'tower'
 
-
+# https://github.com/RobRomijnders/tensorflow_basic
 def inference(images, FLAGS):
     """Build the CIFAR-10 model.
 
@@ -33,17 +33,17 @@ def inference(images, FLAGS):
                                             shape=[5, 5, 3, 64],
                                             stddev=5e-2,
                                             wd=0.0)
+        
+        # Visualize kernel of conv1
+        grid_x = grid_y = 8   # to get a square grid for 64 conv1 features x*y
+        grid = put_kernels_on_grid(kernel, grid_y, grid_x)
+        tf.image_summary("features", grid, max_images=1)
+
         conv = tf.nn.conv2d(images, kernel, [1, 1, 1, 1], padding='SAME')
         biases = _get_variable('biases', [64], tf.constant_initializer(0.0))
         bias = tf.nn.bias_add(conv, biases)
         conv1 = tf.nn.relu(bias, name=scope.name)
         _activation_summary(conv1)
-        
-        # Add kernel image for conv1 layer.
-        #tf.get_variable_scope().reuse_variables()
-        grid_x = grid_y = 8   # to get a square grid for 64 conv1 features x*y
-        grid = put_kernels_on_grid(kernel, grid_y, grid_x)
-        tf.image_summary("features", grid, max_images=1)
         
     # pool1
     pool1 = tf.nn.max_pool(conv1, ksize=[1, 3, 3, 1], strides=[1, 2, 2, 1],

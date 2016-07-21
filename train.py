@@ -59,9 +59,9 @@ import utils
 #
 flags = tf.app.flags
 FLAGS = flags.FLAGS
-flags.DEFINE_float('initial_learning_rate', 0.1, 'Initial learning rate.')
+flags.DEFINE_float('initial_learning_rate', 0.01, 'Initial learning rate.')
 flags.DEFINE_integer('num_epochs_per_decay', 50, 'Epochs after which learning rate decays.')
-flags.DEFINE_float('learning_rate_decay_factor', 0.1, 'Learning rate decay factor.')
+flags.DEFINE_float('learning_rate_decay_factor', 0.01, 'Learning rate decay factor.')
 flags.DEFINE_float('moving_average_decay', 0.9999, 'The decay to use for the moving average.')
 flags.DEFINE_integer('max_steps', 100000, 'Number of steps to run trainer.')
 flags.DEFINE_integer('batch_size', 100, 'Batch size. Must divide evenly into the dataset sizes.')
