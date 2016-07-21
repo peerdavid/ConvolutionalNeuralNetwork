@@ -23,6 +23,7 @@
 #   https://github.com/tensorflow/tensorflow/blob/master/tensorflow/models/image/mnist/convolutional.py
 #   https://www.tensorflow.org/versions/r0.9/how_tos/variable_scope/index.html 
 #   https://github.com/HamedMP/ImageFlow/blob/master/example_project/my_cifar_train.py
+#   https://cs231n.github.io/understanding-cnn/
 #
 # ToDo:
 # - Refactoring (Training, Evaluation, Visualization, Input, Model)
@@ -33,7 +34,7 @@
 # - classify.py
 # - Dropout
 # - ... and somewhere inside "def train():" after calling "inference()" visualize conv1 layer = https://gist.github.com/kukuruza/03731dc494603ceab0c5
-# - Asser loss nan
+# - show the activations of the network during the forward pass for ALL conv layers
 # 
 
 #from __future__ import absolute_import
@@ -285,7 +286,7 @@ if __name__ == '__main__':
                         summary_writer.add_summary(summary_str[0], step)
                         
                     # Calculate accuracy      
-                    if step % 500 == 0 and step != 0:                                 
+                    if step % 500 == 0:                                 
                         precision = evaluation.do_eval(sess, eval_correct, images_placeholder, labels_placeholder, test_data_set)
                         summary = tf.Summary(value=[tf.Summary.Value(tag="accuracy_test", simple_value=precision)])
                         summary_writer.add_summary(summary, step) 
