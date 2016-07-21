@@ -72,7 +72,7 @@ flags.DEFINE_integer('image_width', 28, 'x, y size of image.')
 flags.DEFINE_integer('image_height', 28, 'x, y size of image.')
 flags.DEFINE_integer('image_pixels', 28 * 28, 'num of pixels per image.')
 flags.DEFINE_integer('num_classes', 3, 'Number of image classes')  
-flags.DEFINE_boolean('is_jpeg', True, 'jpeg = True, png = False')   
+flags.DEFINE_boolean('is_jpeg', False, 'jpeg = True, png = False')   
 
    
 def loss(logits, labels):
