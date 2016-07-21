@@ -1,21 +1,28 @@
 
 #
-# Classify cars with tensorflow
-# Peer David (2016)
+# Convolutional Neural Networks with Tensorflow
+# Peer David - 2016
 #
-# -- car_interclass --
-# 0 = oldtimer
-# 1 = super
-# 2 = estate
+# data
+#  car
+#   0 = oldtimer
+#   1 = super
+#   2 = estate
 #
-# -- data --
-# 0 = faces
-# 1 = airplane
-# 2 = motorbike
+#  mnist
+#   0 = 0
+#    ...
+#   9 = 9
 #
-# https://github.com/tensorflow/tensorflow/blob/master/tensorflow/models/image/mnist/convolutional.py
-# https://www.tensorflow.org/versions/r0.9/how_tos/variable_scope/index.html 
-# https://github.com/HamedMP/ImageFlow/blob/master/example_project/my_cifar_train.py
+#  object_categories
+#   0 = faces
+#   1 = airplane
+#   2 = motorbike
+#
+# References
+#   https://github.com/tensorflow/tensorflow/blob/master/tensorflow/models/image/mnist/convolutional.py
+#   https://www.tensorflow.org/versions/r0.9/how_tos/variable_scope/index.html 
+#   https://github.com/HamedMP/ImageFlow/blob/master/example_project/my_cifar_train.py
 #
 # ToDo:
 # - Refactoring (Training, Evaluation, Visualization, Input, Model)
@@ -49,21 +56,21 @@ import model
 # Basic model parameters as external flags.
 flags = tf.app.flags
 FLAGS = flags.FLAGS
-flags.DEFINE_float('initial_learning_rate', 0.001, 'Initial learning rate.')
+flags.DEFINE_float('initial_learning_rate', 0.01, 'Initial learning rate.')
 flags.DEFINE_integer('num_epochs_per_decay', 50, 'Epochs after which learning rate decays.')
-flags.DEFINE_float('learning_rate_decay_factor', 0.001, 'Learning rate decay factor.')
+flags.DEFINE_float('learning_rate_decay_factor', 0.01, 'Learning rate decay factor.')
 flags.DEFINE_float('moving_average_decay', 0.9999, 'The decay to use for the moving average.')
 flags.DEFINE_integer('max_steps', 100000, 'Number of steps to run trainer.')
 flags.DEFINE_integer('batch_size', 64, 'Batch size. Must divide evenly into the dataset sizes.')
-flags.DEFINE_integer('training_size', 2000, 'Size of training data. Rest will be used for testing.')
+flags.DEFINE_integer('test_size', 10000, 'Size of testing data. Rest will be used for training.')
 flags.DEFINE_integer('num_epochs', 1000, 'Number of epochs to run trainer.')
-flags.DEFINE_string('log_dir', 'log_dir', 'Directory to put the log data.')
-flags.DEFINE_string('img_dir', 'car_interclass/', 'Directory of images.')
-flags.DEFINE_integer('orig_image_width', 120, 'x, y size of image.')
-flags.DEFINE_integer('orig_image_height', 75, 'x, y size of image.')
-flags.DEFINE_integer('image_width', 120, 'x, y size of image.')
-flags.DEFINE_integer('image_height', 75, 'x, y size of image.')
-flags.DEFINE_integer('image_pixels', 120 * 75, 'num of pixels per image.')
+flags.DEFINE_string('log_dir', 'log_dir/current/', 'Directory to put the log data.')
+flags.DEFINE_string('img_dir', 'data/mnist/', 'Directory of images.')
+flags.DEFINE_integer('orig_image_width', 28, 'x, y size of image.')
+flags.DEFINE_integer('orig_image_height', 28, 'x, y size of image.')
+flags.DEFINE_integer('image_width', 28, 'x, y size of image.')
+flags.DEFINE_integer('image_height', 28, 'x, y size of image.')
+flags.DEFINE_integer('image_pixels', 28 * 28, 'num of pixels per image.')
 flags.DEFINE_integer('num_classes', 3, 'Number of image classes')  
 flags.DEFINE_boolean('is_jpeg', True, 'jpeg = True, png = False')   
 

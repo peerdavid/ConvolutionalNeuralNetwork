@@ -1,5 +1,8 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Training images and logging directories of tensorflow
 data
-car_interclass
-log_dir*
-mnist
-*.pyc
+log_dir

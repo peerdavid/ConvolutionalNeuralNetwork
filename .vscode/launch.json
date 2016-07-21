@@ -6,7 +6,7 @@
 			"type": "python",
 			"request": "launch",
 			"stopOnEntry": true,
-			"program": "${file}",
+			"program": "${workspaceRoot}/train.py"//"${file}",
 			"pythonPath": "/usr/bin/python3",
 			"debugOptions": [
 				"WaitOnAbnormalExit",
