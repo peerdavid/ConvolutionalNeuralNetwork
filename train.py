@@ -49,7 +49,7 @@ from datetime import datetime
 from six.moves import xrange
 
 import tensorflow as tf
-import input
+import data_input
 import model
 import evaluation
 import utils
@@ -207,10 +207,10 @@ if __name__ == '__main__':
 
         # Tell TensorFlow that the model will be built into the default Graph.
         with tf.Graph().as_default():
-            data_sets = input.read_labeled_image_batches(FLAGS)
+            data_sets = data_input.read_labeled_image_batches(FLAGS)
             train_data_set = data_sets.train
             test_data_set = data_sets.test
-                      
+          
             images_placeholder, labels_placeholder = _create_placeholder_inputs(FLAGS.batch_size, FLAGS.image_height, FLAGS.image_width)
                     
             # Build a Graph that computes predictions from the inference model.
