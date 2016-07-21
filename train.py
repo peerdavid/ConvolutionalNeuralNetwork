@@ -44,7 +44,7 @@
 import os
 import traceback
 import time
-import numpy
+import numpy as np
 from datetime import datetime
 from six.moves import xrange
 
@@ -59,12 +59,12 @@ import utils
 #
 flags = tf.app.flags
 FLAGS = flags.FLAGS
-flags.DEFINE_float('initial_learning_rate', 0.01, 'Initial learning rate.')
+flags.DEFINE_float('initial_learning_rate', 0.1, 'Initial learning rate.')
 flags.DEFINE_integer('num_epochs_per_decay', 50, 'Epochs after which learning rate decays.')
-flags.DEFINE_float('learning_rate_decay_factor', 0.01, 'Learning rate decay factor.')
+flags.DEFINE_float('learning_rate_decay_factor', 0.1, 'Learning rate decay factor.')
 flags.DEFINE_float('moving_average_decay', 0.9999, 'The decay to use for the moving average.')
 flags.DEFINE_integer('max_steps', 100000, 'Number of steps to run trainer.')
-flags.DEFINE_integer('batch_size', 64, 'Batch size. Must divide evenly into the dataset sizes.')
+flags.DEFINE_integer('batch_size', 100, 'Batch size. Must divide evenly into the dataset sizes.')
 flags.DEFINE_integer('test_size', 10000, 'Size of testing data. Rest will be used for training.')
 flags.DEFINE_integer('num_epochs', 1000, 'Number of epochs to run trainer.')
 flags.DEFINE_string('log_dir', 'log_dir/current/', 'Directory to put the log data.')
@@ -265,7 +265,8 @@ if __name__ == '__main__':
                     
                     train_feed = utils.create_feed_data(sess, images_placeholder, labels_placeholder, train_data_set)
                     _, loss_value = sess.run([train_op, train_loss], feed_dict=train_feed)
-                    
+                    assert not np.isnan(loss_value), 'Model diverged with loss = NaN'
+
                     duration = time.time() - start_time
 
                     # Print step loss etc.
@@ -284,7 +285,7 @@ if __name__ == '__main__':
                         summary_writer.add_summary(summary_str[0], step)
                         
                     # Calculate accuracy      
-                    if step % 500 == 0:                                 
+                    if step % 500 == 0 and step != 0:                                 
                         precision = evaluation.do_eval(sess, eval_correct, images_placeholder, labels_placeholder, test_data_set)
                         summary = tf.Summary(value=[tf.Summary.Value(tag="accuracy_test", simple_value=precision)])
                         summary_writer.add_summary(summary, step) 

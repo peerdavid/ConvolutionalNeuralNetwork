@@ -6,3 +6,6 @@ __pycache__/
 # Training images and logging directories of tensorflow
 data
 log_dir
+
+# VS Code
+.vscode/.browse*
