@@ -15,48 +15,12 @@
 			]
 		},
 		{
-			"name": "Python Console App",
+			"name": "predict.py",
 			"type": "python",
 			"request": "launch",
 			"stopOnEntry": true,
-			"program": "${file}",
-			"externalConsole": true,
+			"program": "${workspaceRoot}/predict.py",
 			"pythonPath": "/usr/bin/python3",
-			"debugOptions": [
-				"WaitOnAbnormalExit",
-				"WaitOnNormalExit"
-			]
-		},
-		{
-			"name": "Django",
-			"type": "python",
-			"request": "launch",
-			"stopOnEntry": true,
-			"pythonPath": "/usr/bin/python3",
-			"program": "${workspaceRoot}/manage.py",
-			"args": [
-				"runserver",
-				"--noreload"
-			],
-			"debugOptions": [
-				"WaitOnAbnormalExit",
-				"WaitOnNormalExit",
-				"RedirectOutput",
-				"DjangoDebugging"
-			]
-		},
-		{
-			"name": "Watson",
-			"type": "python",
-			"request": "launch",
-			"stopOnEntry": true,
-			"pythonPath": "/usr/bin/python3",
-			"program": "${workspaceRoot}/console.py",
-			"args": [
-				"dev",
-				"runserver",
-				"--noreload=True"
-			],
 			"debugOptions": [
 				"WaitOnAbnormalExit",
 				"WaitOnNormalExit",

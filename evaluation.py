@@ -5,11 +5,7 @@ import tensorflow as tf
 
 import utils
 
-def do_eval(sess,
-            eval_correct,
-            images_placeholder,
-            labels_placeholder,
-            data_set):
+def do_eval(sess, eval_correct, images_placeholder, labels_placeholder, data_set):
     """Runs one evaluation against the full epoch of data.
     Args:
         sess: The session in which the model has been trained.

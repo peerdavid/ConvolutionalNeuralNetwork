@@ -22,17 +22,16 @@
 # References
 #   - https://github.com/tensorflow/tensorflow/blob/master/tensorflow/models/image/mnist/convolutional.py
 #   - https://www.tensorflow.org/versions/r0.9/how_tos/variable_scope/index.html 
+#   - https://www.tensorflow.org/versions/r0.9/how_tos/reading_data/index.html
 #   - https://github.com/HamedMP/ImageFlow/blob/master/example_project/my_cifar_train.py
 #   - https://cs231n.github.io/understanding-cnn/
 #   - https://gist.github.com/kukuruza/03731dc494603ceab0c5
 #
 ################################################
 # ToDo:
-#   -Refactoring (Training, Evaluation, Visualization, Input, Model)
-#   - Evaluation (https://www.tensorflow.org/versions/r0.9/how_tos/reading_data/index.html)
-#        - The training process reads training input data and periodically writes checkpoint files with all the trained variables.
-#        - The evaluation process restores the checkpoint files into an inference model that reads validation input data.
-#   - Classify.py => test with own images
+#   - Refactoring (Training, Evaluation, Prediction)
+#   - Evaluation => Compare different models
+#   - Prediction.py => test with own images
 #   - Regularization with L2/L1/Maxnorm/Dropout
 #   - Show the activations of the network during the forward pass for ALL conv layers
 #   - Restart training from last checkpoint
@@ -79,12 +78,6 @@ flags.DEFINE_integer('num_epochs', 1000, 'Max. number of epochs to run trainer.'
 #
 # Helper functions
 #          
-def _create_placeholder_inputs(batch_size, image_height, image_width):
-    images_pl = tf.placeholder(tf.float32, shape=(batch_size, image_height, image_width, 3))
-    labels_pl = tf.placeholder(tf.int32, shape=batch_size)
-    return images_pl, labels_pl
-
-
 def _create_train_loss(logits, labels):
     """Add L2Loss to all the trainable variables.
 
@@ -190,12 +183,12 @@ def _add_loss_summaries(total_loss):
         tf.scalar_summary(l.op.name, loss_averages.average(l))
 
     return loss_averages_op
-    
-        
+
+
 #
 # M A I N
-#
-if __name__ == '__main__':
+#   
+def main(argv=None):
     try:
         
         # Create log dir if not exists
@@ -209,7 +202,7 @@ if __name__ == '__main__':
             train_data_set = data_sets.train
             test_data_set = data_sets.test
           
-            images_placeholder, labels_placeholder = _create_placeholder_inputs(FLAGS.batch_size, FLAGS.image_height, FLAGS.image_width)
+            images_placeholder, labels_placeholder = utils.create_placeholder_inputs(FLAGS.batch_size, FLAGS.image_height, FLAGS.image_width)
                     
             # Build a Graph that computes predictions from the inference model.
             # We use the same weight's etc. for the training and testing
@@ -316,3 +309,42 @@ if __name__ == '__main__':
 
     finally:
         print("\nDone.\n")
+
+
+if __name__ == '__main__':
+    tf.app.run()
+
+
+
+def save_graph():
+
+    g = tf.Graph()
+    vars = {}
+    with g.as_default():
+        with tf.Session() as sess:
+            d = np.ones([128,24,24,3],dtype=np.float32)
+            images, labels = cifar10.distorted_inputs()
+            logits = cifar10.inference(images)
+
+            init = tf.initialize_all_variables()
+            sess.run(init)
+            saver = tf.train.Saver(tf.trainable_variables(),max_to_keep=0)
+            saver.restore(sess,os.path.join(FLAGS.train_dir, 'model.ckpt-19999'))
+
+            print (sess.run(logits,{images:d}))
+            for v in tf.trainable_variables():
+                vars[v.value().name] = sess.run(v)
+
+
+    g2 = tf.Graph()
+    consts = {}
+    with g2.as_default():
+        with tf.Session() as sess:
+            for k in vars.keys():
+                consts[k] = tf.constant(vars[k])
+            tf.import_graph_def(g.as_graph_def(),input_map={name:consts[name] for name in consts.keys()})
+
+            tf.train.write_graph(sess.graph_def,'/home/eli/Documents/TensorflowProjetos/ProtobufFiles','graph.pb',False)
+
+    return os.path.join('/home/eli/Documents/TensorflowProjetos/ProtobufFiles','graph.pb')
+

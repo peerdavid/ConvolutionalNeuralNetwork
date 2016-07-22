@@ -6,6 +6,16 @@ from tensorflow.python.framework import dtypes
 import random
 
 
+#
+# Needs:
+# FLAGS.img_dir
+# FLAGS.test_size
+# FLAGS.batch_size
+# FLAGS.image_height
+# FLAGS.image_width
+#
+
+
 def read_labeled_image_batches(FLAGS):
     print("\nReading input images from {0}".format(FLAGS.img_dir))
     print("-----------------------------")
