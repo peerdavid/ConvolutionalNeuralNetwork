@@ -7,6 +7,8 @@ import random
 
 
 def read_labeled_image_batches(FLAGS):
+    print("\nReading input images from {0}".format(FLAGS.img_dir))
+    print("-----------------------------")
     class DataSet(object):
         pass
     
@@ -18,9 +20,13 @@ def read_labeled_image_batches(FLAGS):
     data_sets.test = test_data_set
     
     # Reads pfathes of images together with their labels
-    image_list, label_list = _read_labeled_image_list(FLAGS.img_dir)
+    image_list, label_list, num_classes = _read_labeled_image_list(FLAGS.img_dir)
     image_list, label_list = _shuffle_tow_arrays_together(image_list, label_list)   
     
+    train_data_set.num_classes = num_classes
+    test_data_set.num_classes = num_classes
+    print("Num of classes: {0}".format(num_classes))
+
     # Split into training and testing sets
     train_images = image_list[FLAGS.test_size:]
     train_labels = label_list[FLAGS.test_size:]
@@ -60,7 +66,9 @@ def read_labeled_image_batches(FLAGS):
     test_data_set.batch_size = FLAGS.batch_size
     test_data_set.images = test_image_batch
     test_data_set.labels = test_label_batch
-    
+
+    print ("Batch size: {0}".format(train_data_set.batch_size))
+    print("-----------------------------\n")
     return data_sets                  
    
 
@@ -73,19 +81,19 @@ def _read_labeled_image_list(path):
     Returns:
       List with all filenames and list with all labels
     """
-    
-    print("Reading all image labels and file names.")
     filenames = []
     labels = []
     label_dirs = [dir for dir in os.listdir(path) if os.path.isdir(os.path.join(path, dir))]
+    num_classes = 0
     for label in label_dirs:
+        num_classes += 1
         subdir = path + label
         for image in os.listdir(subdir):
             filenames.append("{0}/{1}".format(subdir, image))
             labels.append(int(label))
     
     assert len(filenames) == len(labels), "Supervised training => number of images and labels must be the same"
-    return filenames, labels
+    return filenames, labels, num_classes
 
 
 def _shuffle_tow_arrays_together(a, b):
@@ -113,6 +121,6 @@ def _read_images_from_disk(input_queue, FLAGS):
     else:
         images = tf.image.decode_png(files, channels=3)   
         
-    images.set_shape([FLAGS.orig_image_height, FLAGS.orig_image_width, 3])
+    images.set_shape([FLAGS.image_height, FLAGS.image_width, 3])
     
     return images, labels_queue 

@@ -1,8 +1,7 @@
-
-#
+################################################
 # Convolutional Neural Networks with Tensorflow
 # Peer David - 2016
-#
+################################################
 # data
 #  car
 #   0 = oldtimer
@@ -19,28 +18,26 @@
 #   1 = airplane
 #   2 = motorbike
 #
+################################################
 # References
-#   https://github.com/tensorflow/tensorflow/blob/master/tensorflow/models/image/mnist/convolutional.py
-#   https://www.tensorflow.org/versions/r0.9/how_tos/variable_scope/index.html 
-#   https://github.com/HamedMP/ImageFlow/blob/master/example_project/my_cifar_train.py
-#   https://cs231n.github.io/understanding-cnn/
+#   - https://github.com/tensorflow/tensorflow/blob/master/tensorflow/models/image/mnist/convolutional.py
+#   - https://www.tensorflow.org/versions/r0.9/how_tos/variable_scope/index.html 
+#   - https://github.com/HamedMP/ImageFlow/blob/master/example_project/my_cifar_train.py
+#   - https://cs231n.github.io/understanding-cnn/
+#   - https://gist.github.com/kukuruza/03731dc494603ceab0c5
 #
+################################################
 # ToDo:
-# - Refactoring (Training, Evaluation, Visualization, Input, Model)
-# - Get number of classes by number of folders of file system
-# - Evaluation -> https://www.tensorflow.org/versions/r0.9/how_tos/reading_data/index.html
-#      - The training process reads training input data and periodically writes checkpoint files with all the trained variables.
-#      - The evaluation process restores the checkpoint files into an inference model that reads validation input data.
-# - classify.py
-# - Dropout
-# - ... and somewhere inside "def train():" after calling "inference()" visualize conv1 layer = https://gist.github.com/kukuruza/03731dc494603ceab0c5
-# - show the activations of the network during the forward pass for ALL conv layers
-# 
-
-#from __future__ import absolute_import
-#from __future__ import division
-#from __future__ import print_function
-
+#   -Refactoring (Training, Evaluation, Visualization, Input, Model)
+#   - Evaluation (https://www.tensorflow.org/versions/r0.9/how_tos/reading_data/index.html)
+#        - The training process reads training input data and periodically writes checkpoint files with all the trained variables.
+#        - The evaluation process restores the checkpoint files into an inference model that reads validation input data.
+#   - Classify.py => test with own images
+#   - Regularization with L2/L1/Maxnorm/Dropout
+#   - Show the activations of the network during the forward pass for ALL conv layers
+#   - Restart training from last checkpoint
+#
+################################################
 
 import os
 import traceback
@@ -55,30 +52,30 @@ import model
 import evaluation
 import utils
 
+
 #
 # Hyperparameters
 #
 flags = tf.app.flags
 FLAGS = flags.FLAGS
+
 flags.DEFINE_float('initial_learning_rate', 0.01, 'Initial learning rate.')
 flags.DEFINE_integer('num_epochs_per_decay', 50, 'Epochs after which learning rate decays.')
 flags.DEFINE_float('learning_rate_decay_factor', 0.01, 'Learning rate decay factor.')
 flags.DEFINE_float('moving_average_decay', 0.9999, 'The decay to use for the moving average.')
-flags.DEFINE_integer('max_steps', 100000, 'Number of steps to run trainer.')
 flags.DEFINE_integer('batch_size', 100, 'Batch size. Must divide evenly into the dataset sizes.')
-flags.DEFINE_integer('test_size', 10000, 'Size of testing data. Rest will be used for training.')
-flags.DEFINE_integer('num_epochs', 1000, 'Number of epochs to run trainer.')
-flags.DEFINE_string('log_dir', 'log_dir/current/', 'Directory to put the log data.')
+
+flags.DEFINE_string('log_dir', 'log/current/', 'Directory to put the log data. Set this -logdir in tensorboard')
 flags.DEFINE_string('img_dir', 'data/mnist/', 'Directory of images.')
-flags.DEFINE_integer('orig_image_width', 28, 'x, y size of image.')
-flags.DEFINE_integer('orig_image_height', 28, 'x, y size of image.')
+flags.DEFINE_integer('test_size', 10000, 'Size of testing data. Rest will be used for training.')
 flags.DEFINE_integer('image_width', 28, 'x, y size of image.')
 flags.DEFINE_integer('image_height', 28, 'x, y size of image.')
-flags.DEFINE_integer('image_pixels', 28 * 28, 'num of pixels per image.')
-flags.DEFINE_integer('num_classes', 10, 'Number of image classes')  
 flags.DEFINE_boolean('is_jpeg', False, 'jpeg = True, png = False')   
-  
+
+flags.DEFINE_integer('max_steps', 100000, 'Max. number of steps to run trainer.')
+flags.DEFINE_integer('num_epochs', 1000, 'Max. number of epochs to run trainer.')
       
+
 #
 # Helper functions
 #          
@@ -216,7 +213,7 @@ if __name__ == '__main__':
                     
             # Build a Graph that computes predictions from the inference model.
             # We use the same weight's etc. for the training and testing
-            logits = model.inference(images_placeholder, FLAGS)
+            logits = model.inference(images_placeholder, train_data_set.batch_size, train_data_set.num_classes)
                             
             # Accuracy
             correct = tf.nn.in_top_k(logits, labels_placeholder, 1)

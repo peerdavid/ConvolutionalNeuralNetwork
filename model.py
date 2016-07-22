@@ -9,7 +9,7 @@ import tensorflow as tf
 TOWER_NAME = 'tower'
 
 # https://github.com/RobRomijnders/tensorflow_basic
-def inference(images, FLAGS):
+def inference(images, batch_size, num_classes):
     """Build the CIFAR-10 model.
 
     Args:
@@ -74,7 +74,7 @@ def inference(images, FLAGS):
     # local3
     with tf.variable_scope('local3') as scope:
         # Move everything into depth so we can perform a single matrix multiply.
-        reshape = tf.reshape(pool2, [FLAGS.batch_size, -1])
+        reshape = tf.reshape(pool2, [batch_size, -1])
         dim = reshape.get_shape()[1].value
         weights = _variable_with_weight_decay('weights', shape=[dim, 384],
                                             stddev=0.04, wd=0.004)
@@ -92,9 +92,9 @@ def inference(images, FLAGS):
 
     # softmax, i.e. softmax(WX + b)
     with tf.variable_scope('softmax_linear') as scope:
-        weights = _variable_with_weight_decay('weights', [192, FLAGS.num_classes],
+        weights = _variable_with_weight_decay('weights', [192, num_classes],
                                             stddev=1/192.0, wd=0.0)
-        biases = _get_variable('biases', [FLAGS.num_classes],
+        biases = _get_variable('biases', [num_classes],
                                 tf.constant_initializer(0.0))
         softmax_linear = tf.add(tf.matmul(local4, weights), biases, name=scope.name)
         _activation_summary(softmax_linear)
