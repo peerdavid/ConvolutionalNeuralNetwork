@@ -15,12 +15,28 @@ import random
 # FLAGS.image_width
 #
 
+class DataSet(object):
+    pass
+    
+def read_image_list(file_list, FLAGS):
+
+    data_set = DataSet
+    data_set.size = len(file_list)
+
+    # Create image queue
+    label_list = [0 for i in range(data_set.size)]
+
+    tf_images = ops.convert_to_tensor(file_list, dtype=dtypes.string)
+    tf_labels = ops.convert_to_tensor(label_list, dtype=dtypes.int32)
+
+    input_queue = tf.train.slice_input_producer([tf_images, tf_labels], shuffle=False)
+    images_disk, lables_disk = _read_images_from_disk(input_queue, FLAGS)
+    data_set.images, data_set.labels = tf.train.batch([images_disk, lables_disk], batch_size=data_set.size)
+    return data_set
 
 def read_labeled_image_batches(FLAGS):
     print("\nReading input images from {0}".format(FLAGS.img_dir))
     print("-----------------------------")
-    class DataSet(object):
-        pass
     
     # Create dataset structure
     train_data_set = DataSet()
