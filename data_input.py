@@ -136,7 +136,7 @@ def _shuffle_tow_arrays_together(a, b):
     
     return shuffled_a, shuffled_b
 
-
+# mogrify -gravity Center -extent 120x75 -background black -colorspace RGB *jpg
 def _read_images_from_disk(input_queue, FLAGS):    
     images_queue = input_queue[0]
     labels_queue = input_queue[1]

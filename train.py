@@ -7,6 +7,7 @@
 #   0 = oldtimer
 #   1 = super
 #   2 = estate
+#   3 = suv
 #
 #  mnist
 #   0 = 0
@@ -29,12 +30,13 @@
 #
 ################################################
 # ToDo:
-#   - Refactoring (Training, Evaluation, Prediction)
 #   - Evaluation => Compare different models
-#   - Prediction.py => test with own images
 #   - Regularization with L2/L1/Maxnorm/Dropout
 #   - Show the activations of the network during the forward pass for ALL conv layers
 #   - Restart training from last checkpoint
+#   - Smoother conv1 kernel -> https://www.reddit.com/r/MachineLearning/comments/325euc/tipstricksintuition_to_obtain_convolutional/
+#     - Data normalization
+#     - L2
 #
 ################################################
 
@@ -58,7 +60,7 @@ import utils
 flags = tf.app.flags
 FLAGS = flags.FLAGS
 
-flags.DEFINE_float('initial_learning_rate', 0.01, 'Initial learning rate.')
+flags.DEFINE_float('initial_learning_rate', 0.02, 'Initial learning rate.')
 flags.DEFINE_integer('num_epochs_per_decay', 50, 'Epochs after which learning rate decays.')
 flags.DEFINE_float('learning_rate_decay_factor', 0.01, 'Learning rate decay factor.')
 flags.DEFINE_float('moving_average_decay', 0.9999, 'The decay to use for the moving average.')
@@ -72,7 +74,7 @@ flags.DEFINE_integer('image_height', 28, 'x, y size of image.')
 flags.DEFINE_boolean('is_jpeg', False, 'jpeg = True, png = False')   
 
 flags.DEFINE_integer('max_steps', 100000, 'Max. number of steps to run trainer.')
-flags.DEFINE_integer('num_epochs', 1000, 'Max. number of epochs to run trainer.')
+flags.DEFINE_integer('num_epochs', 10000, 'Max. number of epochs to run trainer.')
       
 
 #
@@ -275,8 +277,8 @@ def main(argv=None):
                         summary_str = sess.run([summary_op], feed_dict=train_feed)
                         summary_writer.add_summary(summary_str[0], step)
                         
-                    # Calculate accuracy      
-                    if step % 500 == 0:                                 
+                    # Calculate accuracy (more steps at beginning)     
+                    if step % 1000 == 0:                                 
                         precision = evaluation.do_eval(sess, eval_correct, images_placeholder, labels_placeholder, test_data_set)
                         summary = tf.Summary(value=[tf.Summary.Value(tag="accuracy_test", simple_value=precision)])
                         summary_writer.add_summary(summary, step) 
@@ -286,7 +288,7 @@ def main(argv=None):
                         summary_writer.add_summary(summary, step) 
 
                     # Save the model checkpoint periodically.
-                    if step % 1000 == 0 or (step + 1) == FLAGS.max_steps:
+                    if step % 2000 == 0 or (step + 1) == FLAGS.max_steps:
                         checkpoint_path = os.path.join(FLAGS.log_dir, 'model.ckpt')
                         saver.save(sess, checkpoint_path, global_step=global_step)
             

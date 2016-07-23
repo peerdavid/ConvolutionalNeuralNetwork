@@ -32,7 +32,7 @@ def inference(images, batch_size, num_classes):
         kernel = _variable_with_weight_decay('weights',
                                             shape=[5, 5, 3, 64],
                                             stddev=5e-2,
-                                            wd=0.0)
+                                            weight_decay=0.04)
         
         # Visualize kernel of conv1
         grid_x = grid_y = 8   # to get a square grid for 64 conv1 features x*y
@@ -57,7 +57,7 @@ def inference(images, batch_size, num_classes):
         kernel = _variable_with_weight_decay('weights',
                                             shape=[5, 5, 64, 64],
                                             stddev=5e-2,
-                                            wd=0.0)
+                                            weight_decay=0.0)
         conv = tf.nn.conv2d(norm1, kernel, [1, 1, 1, 1], padding='SAME')
         biases = _get_variable('biases', [64], tf.constant_initializer(0.1))
         bias = tf.nn.bias_add(conv, biases)
@@ -77,7 +77,7 @@ def inference(images, batch_size, num_classes):
         reshape = tf.reshape(pool2, [batch_size, -1])
         dim = reshape.get_shape()[1].value
         weights = _variable_with_weight_decay('weights', shape=[dim, 384],
-                                            stddev=0.04, wd=0.004)
+                                            stddev=0.04, weight_decay=0.004)
         biases = _get_variable('biases', [384], tf.constant_initializer(0.1))
         local3 = tf.nn.relu(tf.matmul(reshape, weights) + biases, name=scope.name)
         _activation_summary(local3)
@@ -85,7 +85,7 @@ def inference(images, batch_size, num_classes):
     # local4
     with tf.variable_scope('local4') as scope:
         weights = _variable_with_weight_decay('weights', shape=[384, 192],
-                                            stddev=0.04, wd=0.004)
+                                            stddev=0.04, weight_decay=0.004)
         biases = _get_variable('biases', [192], tf.constant_initializer(0.1))
         local4 = tf.nn.relu(tf.matmul(local3, weights) + biases, name=scope.name)
         _activation_summary(local4)
@@ -93,7 +93,7 @@ def inference(images, batch_size, num_classes):
     # softmax, i.e. softmax(WX + b)
     with tf.variable_scope('softmax_linear') as scope:
         weights = _variable_with_weight_decay('weights', [192, num_classes],
-                                            stddev=1/192.0, wd=0.0)
+                                            stddev=1/192.0, weight_decay=0.0)
         biases = _get_variable('biases', [num_classes],
                                 tf.constant_initializer(0.0))
         softmax_linear = tf.add(tf.matmul(local4, weights), biases, name=scope.name)
@@ -134,7 +134,7 @@ def _get_variable(name, shape, initializer):
     return tf.get_variable(name, shape, initializer=initializer, dtype=tf.float32)
 
 
-def _variable_with_weight_decay(name, shape, stddev, wd):
+def _variable_with_weight_decay(name, shape, stddev, weight_decay):
     """Helper to create an initialized Variable with weight decay.
 
     Note that the Variable is initialized with a truncated normal distribution.
@@ -144,8 +144,8 @@ def _variable_with_weight_decay(name, shape, stddev, wd):
         name: name of the variable
         shape: list of ints
         stddev: standard deviation of a truncated Gaussian
-        wd: add L2Loss weight decay multiplied by this float. If None, weight
-            decay is not added for this Variable.
+        weight_decay: add L2Loss weight decay multiplied by this float. If None, weight
+                      decay is not added for this Variable.
 
     Returns:
         Variable Tensor
@@ -155,8 +155,8 @@ def _variable_with_weight_decay(name, shape, stddev, wd):
         name,
         shape,
         tf.truncated_normal_initializer(stddev=stddev, dtype=dtype))
-    if wd is not None:
-        weight_decay = tf.mul(tf.nn.l2_loss(var), wd, name='weight_loss')
+    if weight_decay is not None:
+        weight_decay = tf.mul(tf.nn.l2_loss(var), weight_decay, name='weight_loss')
         tf.add_to_collection('losses', weight_decay)
     return var
   

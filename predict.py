@@ -19,7 +19,7 @@ import utils
 flags = tf.app.flags
 FLAGS = flags.FLAGS
 
-flags.DEFINE_string('checkpoint', "log/mnist/model.ckpt-10001", 'Use this checkpoint file to restore the values')
+flags.DEFINE_string('checkpoint', "log/mnist/model.ckpt-8001", 'Use this checkpoint file to restore the values')
 flags.DEFINE_integer('image_width', 28, 'x, y size of image.')
 flags.DEFINE_integer('image_height', 28, 'x, y size of image.')
 flags.DEFINE_boolean('is_jpeg', False, 'jpeg = True, png = False')   
