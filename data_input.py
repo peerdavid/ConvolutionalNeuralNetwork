@@ -110,7 +110,7 @@ def _read_images_from_disk(input_queue, FLAGS):
     labels_queue = input_queue[1]
     files = tf.read_file(images_queue)
     
-    if FLAGS.is_jpeg:
+    if (FLAGS.image_format == 0):
         images = tf.image.decode_jpeg(files, channels=3)   
     else:
         images = tf.image.decode_png(files, channels=3)   

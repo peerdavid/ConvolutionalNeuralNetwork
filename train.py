@@ -74,8 +74,9 @@ def _create_train_loss(logits, labels):
     # decay terms (L2 loss).
     return tf.add_n(tf.get_collection('losses'), name='loss_total')
     
-    
-def _create_train_op(total_loss, global_step, num_images_per_epoch_of_train):
+
+
+def _create_adam_train_op(total_loss, global_step):
     """Train CIFAR-10 model.
 
     Create an optimizer and apply to all trainable variables. Add moving
@@ -83,17 +84,61 @@ def _create_train_op(total_loss, global_step, num_images_per_epoch_of_train):
 
     Args:
         total_loss: Total loss from loss().
-        global_step: Integer Variable counting the number of training steps
-        processed.
+        global_step: Integer Variable counting the number of training steps processed.
     Returns:
-        train_op: op for training.
+        train_op: adam op for training.
+    """
+
+    # Generate moving averages of all losses and associated summaries.
+    loss_averages_op = _add_loss_summaries(total_loss)
+
+    # Compute gradients.
+    with tf.control_dependencies([loss_averages_op]):
+        opt = tf.train.AdamOptimizer(FLAGS.learning_rate)
+        grads = opt.compute_gradients(total_loss)
+
+    # Apply gradients.
+    apply_gradient_op = opt.apply_gradients(grads, global_step=global_step)
+
+    # Add histograms for trainable variables.
+    for var in tf.trainable_variables():
+        tf.histogram_summary(var.op.name, var)
+
+    # Add histograms for gradients.
+    for grad, var in grads:
+        if grad is not None:
+            tf.histogram_summary(var.op.name + '/gradients', grad)
+        
+    # Track the moving averages of all trainable variables.
+    variable_averages = tf.train.ExponentialMovingAverage(
+        FLAGS.moving_average_decay, global_step)
+    variables_averages_op = variable_averages.apply(tf.trainable_variables())
+
+    with tf.control_dependencies([apply_gradient_op, variables_averages_op]):
+        ret = tf.no_op(name='train')
+
+    return ret
+
+
+def _create_gradient_descent_train_op(total_loss, global_step, num_images_per_epoch_of_train):
+    """Train CIFAR-10 model.
+
+    Create an optimizer and apply to all trainable variables. Add moving
+    average for all trainable variables.
+
+    Args:
+        total_loss: Total loss from loss().
+        global_step: Integer Variable counting the number of training steps processed.
+        num_images_per_epoch_of_train: Size of training set ~ number of images per epoch
+    Returns:
+        train_op: gradient descent op for training.
     """
     # Variables that affect learning rate.
     num_batches_per_epoch = num_images_per_epoch_of_train / FLAGS.batch_size
     decay_steps = int(num_batches_per_epoch * FLAGS.num_epochs_per_decay)
 
     # Decay the learning rate exponentially based on the number of steps.
-    lr = tf.train.exponential_decay(FLAGS.initial_learning_rate,
+    lr = tf.train.exponential_decay(FLAGS.learning_rate,
                                     global_step,
                                     decay_steps,
                                     FLAGS.learning_rate_decay_factor,
@@ -152,8 +197,8 @@ def _add_loss_summaries(total_loss):
     for l in losses + [total_loss]:
         # Name each loss as '(raw)' and name the moving average version of the loss
         # as the original loss name.
-        tf.scalar_summary(l.op.name +' (raw)', l)
-        tf.scalar_summary(l.op.name, loss_averages.average(l))
+        tf.scalar_summary(l.op.name + " (raw)", l)
+        tf.scalar_summary(l.op.name + " (avg)", loss_averages.average(l))
 
     return loss_averages_op
 
@@ -190,7 +235,13 @@ def main(argv=None):
 
             # Add to the Graph the Ops that calculate and apply gradients.
             global_step = tf.Variable(0, trainable=False)
-            train_op = _create_train_op(train_loss, global_step, train_data_set.size)
+
+            if(optimizer.FLAGS == 0):
+                print("Using gradient descent optimizer.")
+                train_op = _create_gradient_descent_train_op(train_loss, global_step, train_data_set.size)
+            else:
+                print("Using adam optimizer.")
+                train_op = _create_adam_train_op(train_loss, global_step)
 
             # Create a saver for writing training checkpoints.
             saver = tf.train.Saver(tf.all_variables())

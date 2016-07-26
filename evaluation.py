@@ -24,7 +24,7 @@ def do_eval(sess, eval_correct, images_placeholder, labels_placeholder, data_set
         feed_dict = utils.create_feed_data(sess, images_placeholder, labels_placeholder, data_set)
         true_count += sess.run(eval_correct, feed_dict=feed_dict)
 
-        sys.stdout.write("Calculating accuracy...%d%%\r" % (step * 100 / steps_per_epoch))
+        sys.stdout.write("  Calculating accuracy...%d%%\r" % (step * 100 / steps_per_epoch))
         sys.stdout.flush()
 
 
@@ -44,7 +44,7 @@ def create_confusion_matrix(sess, prediction, images_placeholder, labels_placeho
         confusion = tf.contrib.metrics.confusion_matrix(predictions, labels_r, tf.cast(num_classes, tf.int64))
         confusion_matrix += sess.run(confusion)
 
-        sys.stdout.write("Calculating confusion matrix...%d%%\r" % (step * 100 / steps_per_epoch))
+        sys.stdout.write("  Calculating confusion matrix...%d%%\r" % (step * 100 / steps_per_epoch))
         sys.stdout.flush()
     
     return confusion_matrix
