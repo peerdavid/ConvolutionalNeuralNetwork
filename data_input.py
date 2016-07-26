@@ -138,9 +138,6 @@ def _create_batches(image_list, label_list, FLAGS, batch_size = None):
 
     images_disk, lables_disk = _read_images_from_disk(input_queue, FLAGS)
 
-    # Preprocess images
-    images_disk = tf.image.per_image_whitening(images_disk)
-
     data_set.images, data_set.labels = tf.train.batch([images_disk, lables_disk], 
             batch_size=data_set.batch_size, num_threads=10)
     return data_set
