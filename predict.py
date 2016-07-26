@@ -1,17 +1,12 @@
 
 
-import os
 import traceback
-import time
-import numpy as np
-from datetime import datetime
-from six.moves import xrange
-
 import tensorflow as tf
+
 import data_input
 import model
-import evaluation
 import utils
+
 
 #
 # Hyperparameters for predictions
@@ -38,11 +33,11 @@ def main(argv=None):
         with tf.Graph().as_default():
 
             # Load all images from disk
-            data_set = data_input.read_image_list(images_to_predict, FLAGS)
+            data_set = data_input.read_image_batches_without_labels_from_file_list(images_to_predict, FLAGS)
 
             # Inference model
-            images_placeholder, labels_placeholder = utils.create_placeholder_inputs(data_set.size, FLAGS.image_height, FLAGS.image_width)
-            logits = model.inference(images_placeholder, data_set.size, FLAGS.num_classes)
+            images_placeholder, labels_placeholder = utils.create_placeholder_inputs(data_set.batch_size, FLAGS.image_height, FLAGS.image_width)
+            logits = model.inference(images_placeholder, data_set.batch_size, FLAGS.num_classes)
 
             # Max. value is our prediction
             prediction=tf.argmax(logits,1)
@@ -61,6 +56,7 @@ def main(argv=None):
                     threads = tf.train.start_queue_runners(sess=sess, coord=coord)
 
                     # Restore variables from disk.
+                    print("Restore session from checkpoint {0}\n".format(FLAGS.checkpoint))
                     saver.restore(sess, FLAGS.checkpoint)
 
                     # Predict

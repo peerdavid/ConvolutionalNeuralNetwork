@@ -6,99 +6,66 @@ from tensorflow.python.framework import dtypes
 import random
 
 
-#
-# Needs:
-# FLAGS.img_dir
-# FLAGS.test_size
-# FLAGS.batch_size
-# FLAGS.image_height
-# FLAGS.image_width
-#
 
 class DataSet(object):
     pass
     
-def read_image_list(file_list, FLAGS):
 
-    data_set = DataSet
-    data_set.size = len(file_list)
-
-    # Create image queue
-    label_list = [0 for i in range(data_set.size)]
-
-    tf_images = ops.convert_to_tensor(file_list, dtype=dtypes.string)
-    tf_labels = ops.convert_to_tensor(label_list, dtype=dtypes.int32)
-
-    input_queue = tf.train.slice_input_producer([tf_images, tf_labels], shuffle=False)
-    images_disk, lables_disk = _read_images_from_disk(input_queue, FLAGS)
-    data_set.images, data_set.labels = tf.train.batch([images_disk, lables_disk], batch_size=data_set.size)
+def read_image_batches_without_labels_from_file_list(image_list, FLAGS):
+    num_images = len(image_list)
+    label_list = [0 for i in range(num_images)]
+    data_set = _create_batches(image_list, label_list, FLAGS, num_images)
     return data_set
 
-def read_labeled_image_batches(FLAGS):
+
+def read_image_batches_with_labels_from_path(path, FLAGS):
+    image_list, label_list, num_classes = read_labeled_image_list(path)
+    data_set = _create_batches(image_list, label_list, FLAGS)
+    data_set.num_classes = num_classes
+    return data_set
+
+
+def read_test_and_train_image_batches(FLAGS):
     print("\nReading input images from {0}".format(FLAGS.img_dir))
     print("-----------------------------")
-    
-    # Create dataset structure
-    train_data_set = DataSet()
-    test_data_set = DataSet()
-    data_sets = DataSet()
-    data_sets.train = train_data_set
-    data_sets.test = test_data_set
-    
-    # Reads pfathes of images together with their labels
-    image_list, label_list, num_classes = _read_labeled_image_list(FLAGS.img_dir)
+       
+    # Reads pathes of images together with their labels
+    image_list, label_list, num_classes = read_labeled_image_list(FLAGS.img_dir)
     image_list, label_list = _shuffle_tow_arrays_together(image_list, label_list)   
     
-    train_data_set.num_classes = num_classes
-    test_data_set.num_classes = num_classes
-    print("Num of classes: {0}".format(num_classes))
-
     # Split into training and testing sets
     train_images = image_list[FLAGS.test_size:]
     train_labels = label_list[FLAGS.test_size:]
     test_images = image_list[:FLAGS.test_size]
     test_labels = label_list[:FLAGS.test_size]
-    assert all(test_image not in train_images for test_image in test_images), "Some images are contained in testing- and training-set." 
-    assert len(train_images) == len(train_labels)
-    assert len(test_images) == len(test_labels)
-    
-    train_data_set.size = len(train_labels)
-    test_data_set.size = len(test_labels)
-    print ("Num of training images: {0}".format(train_data_set.size))
-    print ("Num of testing images: {0}".format(test_data_set.size))
-    assert test_data_set.size == FLAGS.test_size, "Number of testing images is too big."
-    assert test_data_set.size < train_data_set.size, "More testing images then training images."
 
-    # Read images from disk async (when needed => tensor)
-    tf_train_images = ops.convert_to_tensor(train_images, dtype=dtypes.string)
-    tf_train_labels = ops.convert_to_tensor(train_labels, dtype=dtypes.int32)
-    tf_test_images = ops.convert_to_tensor(test_images, dtype=dtypes.string)
-    tf_test_labels = ops.convert_to_tensor(test_labels, dtype=dtypes.int32)
+    assert all(test_image not in train_images for test_image in test_images), "Some images are contained in both, testing- and training-set." 
+    assert len(train_images) == len(train_labels), "Length of train image list and train label list is different"
+    assert len(test_images) == len(test_labels), "Length of test image list and train label list is different"
 
-    input_queue_train = tf.train.slice_input_producer([tf_train_images, tf_train_labels], num_epochs=FLAGS.num_epochs)
-    input_queue_test = tf.train.slice_input_producer([tf_test_images, tf_test_labels], num_epochs=FLAGS.num_epochs)
+    # Create image and label batches
+    train_data_set = _create_batches(train_images, train_labels, FLAGS)
+    test_data_set = _create_batches(test_images, test_labels, FLAGS)
+    train_data_set.num_classes = num_classes
+    test_data_set.num_classes = num_classes
 
-    train_images_disk, train_labels_disk = _read_images_from_disk(input_queue_train, FLAGS)
-    test_images_disk, test_labels_disk = _read_images_from_disk(input_queue_test, FLAGS)
-    
-    # Create training batches.
-    # Not shuffled because it is already shuffled above. 
-    train_image_batch, train_label_batch = tf.train.batch([train_images_disk, train_labels_disk], batch_size=FLAGS.batch_size)
-    test_image_batch, test_label_batch = tf.train.batch([test_images_disk, test_labels_disk], batch_size=FLAGS.batch_size)
-    
-    train_data_set.batch_size = FLAGS.batch_size
-    train_data_set.images = train_image_batch
-    train_data_set.labels = train_label_batch
-    test_data_set.batch_size = FLAGS.batch_size
-    test_data_set.images = test_image_batch
-    test_data_set.labels = test_label_batch
-
-    print ("Batch size: {0}".format(train_data_set.batch_size))
+    print("Num of classes: {0}".format(num_classes))
+    print("Num of training images: {0}".format(train_data_set.size))
+    print("Num of testing images: {0}".format(test_data_set.size))
+    print("Batch size: {0}".format(train_data_set.batch_size))
     print("-----------------------------\n")
-    return data_sets                  
-   
 
-def _read_labeled_image_list(path):
+    assert test_data_set.size == FLAGS.test_size, "Number of testing images is too big."
+    assert test_data_set.size < train_data_set.size, "More testing images than training images."
+
+    data_sets = DataSet()
+    data_sets.train = train_data_set
+    data_sets.test = test_data_set
+
+    return data_sets                  
+
+
+def read_labeled_image_list(path):
     """Reads images and labels from file system. Create a folder for each label and put 
        all images with this label into the sub folder (you don't need a label.txt etc.)
        Note: Images can be downloaded with datr - https://github.com/peerdavid/datr
@@ -136,6 +103,7 @@ def _shuffle_tow_arrays_together(a, b):
     
     return shuffled_a, shuffled_b
 
+
 # mogrify -gravity Center -extent 120x75 -background black -colorspace RGB *jpg
 def _read_images_from_disk(input_queue, FLAGS):    
     images_queue = input_queue[0]
@@ -150,3 +118,21 @@ def _read_images_from_disk(input_queue, FLAGS):
     images.set_shape([FLAGS.image_height, FLAGS.image_width, 3])
     
     return images, labels_queue 
+
+
+def _create_batches(image_list, label_list, FLAGS, batch_size = None):
+
+    if(batch_size is None):
+        batch_size = FLAGS.batch_size
+
+    data_set = DataSet()
+    data_set.size = len(image_list)
+    data_set.batch_size = batch_size
+
+    tf_images = ops.convert_to_tensor(image_list, dtype=dtypes.string)
+    tf_labels = ops.convert_to_tensor(label_list, dtype=dtypes.int32)
+
+    input_queue = tf.train.slice_input_producer([tf_images, tf_labels], shuffle=False)
+    images_disk, lables_disk = _read_images_from_disk(input_queue, FLAGS)
+    data_set.images, data_set.labels = tf.train.batch([images_disk, lables_disk], batch_size=data_set.batch_size)
+    return data_set

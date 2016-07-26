@@ -27,17 +27,6 @@
 #   - https://github.com/HamedMP/ImageFlow/blob/master/example_project/my_cifar_train.py
 #   - https://cs231n.github.io/understanding-cnn/
 #   - https://gist.github.com/kukuruza/03731dc494603ceab0c5
-#
-################################################
-# ToDo:
-#   - Evaluation => Compare different models
-#   - Regularization with L2/L1/Maxnorm/Dropout
-#   - Show the activations of the network during the forward pass for ALL conv layers
-#   - Restart training from last checkpoint
-#   - Smoother conv1 kernel -> https://www.reddit.com/r/MachineLearning/comments/325euc/tipstricksintuition_to_obtain_convolutional/
-#     - Data normalization
-#     - L2
-#
 ################################################
 
 import os
@@ -60,22 +49,26 @@ import utils
 flags = tf.app.flags
 FLAGS = flags.FLAGS
 
-flags.DEFINE_float('initial_learning_rate', 0.02, 'Initial learning rate.')
-flags.DEFINE_integer('num_epochs_per_decay', 50, 'Epochs after which learning rate decays.')
-flags.DEFINE_float('learning_rate_decay_factor', 0.01, 'Learning rate decay factor.')
+# Input / ouput
+flags.DEFINE_string('log_dir', 'log/current/', 'Directory to put the log data = Output.')
+flags.DEFINE_string('img_dir', 'data/mnist/', 'Directory of images = Input.')
+flags.DEFINE_integer('image_width', 28, 'Width in pixels of image.')
+flags.DEFINE_integer('image_height', 28, 'Height in pixels of image.')
+flags.DEFINE_boolean('is_jpeg', False, 'Jpeg if true, png otherwise')   
+
+# Learning parameters
+flags.DEFINE_float('initial_learning_rate', 0.01, 'Initial learning rate.')
+flags.DEFINE_integer('num_epochs_per_decay', 10, 'Epochs after which learning rate decays.')
+flags.DEFINE_float('learning_rate_decay_factor', 0.1, 'Learning rate decay factor.')
 flags.DEFINE_float('moving_average_decay', 0.9999, 'The decay to use for the moving average.')
-flags.DEFINE_integer('batch_size', 100, 'Batch size. Must divide evenly into the dataset sizes.')
-
-flags.DEFINE_string('log_dir', 'log/current/', 'Directory to put the log data. Set this -logdir in tensorboard')
-flags.DEFINE_string('img_dir', 'data/mnist/', 'Directory of images.')
-flags.DEFINE_integer('test_size', 10000, 'Size of testing data. Rest will be used for training.')
-flags.DEFINE_integer('image_width', 28, 'x, y size of image.')
-flags.DEFINE_integer('image_height', 28, 'x, y size of image.')
-flags.DEFINE_boolean('is_jpeg', False, 'jpeg = True, png = False')   
-
+flags.DEFINE_integer('batch_size', 100, 'Size of a single training batch. Reduce if out of gpu memory.')
 flags.DEFINE_integer('max_steps', 100000, 'Max. number of steps to run trainer.')
 flags.DEFINE_integer('num_epochs', 10000, 'Max. number of epochs to run trainer.')
-      
+
+# Evaluation
+flags.DEFINE_integer('test_size', 10000, 'Size of testing data. Rest will be used for training.')
+flags.DEFINE_boolean('initial_accuracy', True, 'Calc accuracy at step 0?')  
+
 
 #
 # Helper functions
@@ -200,10 +193,10 @@ def main(argv=None):
 
         # Tell TensorFlow that the model will be built into the default Graph.
         with tf.Graph().as_default():
-            data_sets = data_input.read_labeled_image_batches(FLAGS)
+            data_sets = data_input.read_test_and_train_image_batches(FLAGS)
             train_data_set = data_sets.train
             test_data_set = data_sets.test
-          
+            
             images_placeholder, labels_placeholder = utils.create_placeholder_inputs(FLAGS.batch_size, FLAGS.image_height, FLAGS.image_width)
                     
             # Build a Graph that computes predictions from the inference model.
@@ -227,7 +220,7 @@ def main(argv=None):
             # Add tensorboard summaries
             tf.image_summary('image_train', train_data_set.images, max_images = 5)
             tf.image_summary('image_test', test_data_set.images, max_images = 5)
-  
+
             # Build the summary operation based on the TF collection of Summaries.
             summary_op = tf.merge_all_summaries()
             
@@ -240,16 +233,18 @@ def main(argv=None):
             # And then after everything is built:
             # Run the Op to initialize the variables.
             sess.run(init)
-    
+
             # Start the queue runners.
             coord = tf.train.Coordinator()
             threads = tf.train.start_queue_runners(sess=sess, coord=coord)
-    
+
             # Instantiate a SummaryWriter to output summaries and the Graph.
             summary_writer = tf.train.SummaryWriter(FLAGS.log_dir, sess.graph)
-           
+            
+            #
+            # Training loop
+            #
             try:
-                # Start the training loop.
                 for step in xrange(FLAGS.max_steps):
                     if coord.should_stop():
                         break
@@ -262,7 +257,7 @@ def main(argv=None):
 
                     duration = time.time() - start_time
 
-                    # Print step loss etc.
+                    # Print step loss etc. to console
                     if step % 10 == 0:
                         num_examples_per_step = train_data_set.batch_size
                         examples_per_sec = num_examples_per_step / duration
@@ -272,13 +267,17 @@ def main(argv=None):
                                     'sec/batch)' % (datetime.now(), step, loss_value,
                                     examples_per_sec, sec_per_batch))
                     
-                    # Write summary
+                    # Write summary to tensorboard
                     if step % 100 == 0:
                         summary_str = sess.run([summary_op], feed_dict=train_feed)
                         summary_writer.add_summary(summary_str[0], step)
                         
-                    # Calculate accuracy (more steps at beginning)     
-                    if step % 1000 == 0:                                 
+                    # Evaluation 
+                    if step % 1000 == 0:
+
+                        if step == 0 and not FLAGS.initial_accuracy:
+                            continue     
+
                         precision = evaluation.do_eval(sess, eval_correct, images_placeholder, labels_placeholder, test_data_set)
                         summary = tf.Summary(value=[tf.Summary.Value(tag="accuracy_test", simple_value=precision)])
                         summary_writer.add_summary(summary, step) 
@@ -287,7 +286,7 @@ def main(argv=None):
                         summary = tf.Summary(value=[tf.Summary.Value(tag="accuracy_train", simple_value=precision)])
                         summary_writer.add_summary(summary, step) 
 
-                    # Save the model checkpoint periodically.
+                    # Save model checkpoint
                     if step % 2000 == 0 or (step + 1) == FLAGS.max_steps:
                         checkpoint_path = os.path.join(FLAGS.log_dir, 'model.ckpt')
                         saver.save(sess, checkpoint_path, global_step=global_step)
@@ -305,7 +304,7 @@ def main(argv=None):
                 coord.join(threads)
                 print("Closing session...\n")
                 sess.close()
- 
+
     except:
         traceback.print_exc()
 
