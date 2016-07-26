@@ -1,45 +1,50 @@
 
+import sys
 import traceback
 from six.moves import xrange
 import tensorflow as tf
 
+import hyperparameter
 import utils
 import data_input
 import model
 
 
-flags = tf.app.flags
-FLAGS = flags.FLAGS
-flags.DEFINE_string('checkpoint', "log/mnist/model.ckpt-8001", 'Use this checkpoint file to restore the values')
-flags.DEFINE_string('eval_dir', 'data/mnist/', 'Directory of images = Input.')
-flags.DEFINE_integer('image_width', 28, 'x, y size of image.')
-flags.DEFINE_integer('image_height', 28, 'x, y size of image.')
-flags.DEFINE_boolean('is_jpeg', False, 'jpeg = True, png = False')   
-flags.DEFINE_integer('num_classes', 10, 'Number of classes to predict')  
-flags.DEFINE_integer('batch_size', 100, 'Size of a single training batch. Reduce if out of gpu memory.')
-
+FLAGS = hyperparameter.FLAGS
 
 def do_eval(sess, eval_correct, images_placeholder, labels_placeholder, data_set):
-    """Runs one evaluation against the full epoch of data.
-    Args:
-        sess: The session in which the model has been trained.
-        eval_correct: The Tensor that returns the number of correct predictions.
-        images_placeholder: The images placeholder.
-        labels_placeholder: The labels placeholder.
-        data_set: The set of images and labels to evaluate
-    """
-    # And run one epoch of eval.
+    # Run evaluation against all images
     true_count = 0  # Counts the number of correct predictions.
     steps_per_epoch = data_set.size // data_set.batch_size
     num_examples = steps_per_epoch * data_set.batch_size
     for step in xrange(steps_per_epoch):
         feed_dict = utils.create_feed_data(sess, images_placeholder, labels_placeholder, data_set)
         true_count += sess.run(eval_correct, feed_dict=feed_dict)
-    precision = true_count / num_examples
-    print('  Num examples: %d  Num correct: %d  Precision @ 1: %0.04f' %
-            (num_examples, true_count, precision)) 
+
+        sys.stdout.write("Calculating accuracy...%d%%\r" % (step * 100 / steps_per_epoch))
+        sys.stdout.flush()
+
+
+    return num_examples, true_count
+
+
+def create_confusion_matrix(sess, prediction, images_placeholder, labels_placeholder, data_set, num_classes):
+
+    # Create confusion matrix for all images (one epoch)
+    confusion_matrix = [[0]*num_classes]*num_classes
+    steps_per_epoch = data_set.size // data_set.batch_size
+    for step in xrange(steps_per_epoch):
+        images_r, labels_r = sess.run([data_set.images, tf.cast(data_set.labels, tf.int64)])
+        feed_dict = {images_placeholder: images_r, labels_placeholder: labels_r}
+
+        predictions = sess.run(prediction, feed_dict=feed_dict)
+        confusion = tf.contrib.metrics.confusion_matrix(predictions, labels_r, tf.cast(num_classes, tf.int64))
+        confusion_matrix += sess.run(confusion)
+
+        sys.stdout.write("Calculating confusion matrix...%d%%\r" % (step * 100 / steps_per_epoch))
+        sys.stdout.flush()
     
-    return precision
+    return confusion_matrix
 
 
 #
@@ -56,9 +61,10 @@ def main(argv=None):
             images_placeholder, labels_placeholder = utils.create_placeholder_inputs(data_set.batch_size, FLAGS.image_height, FLAGS.image_width)
             logits = model.inference(images_placeholder, data_set.batch_size, FLAGS.num_classes)
 
-            # Accuracy
+            # Evaluation
             correct = tf.nn.in_top_k(logits, labels_placeholder, 1)
             eval_correct = tf.reduce_sum(tf.cast(correct, tf.int32))
+            prediction = tf.argmax(logits,1)
 
             # Add the variable initializer Op.
             init = tf.initialize_all_variables()
@@ -74,12 +80,21 @@ def main(argv=None):
                     threads = tf.train.start_queue_runners(sess=sess, coord=coord)
 
                     # Restore variables from disk.
-                    print("Restore session from checkpoint {0}\n".format(FLAGS.checkpoint))
+                    print("Restore session from checkpoint {0}".format(FLAGS.checkpoint))
                     saver.restore(sess, FLAGS.checkpoint)
 
                     # Run evaluation
-                    print("Running evaluation for {0}".format(FLAGS.eval_dir))
-                    do_eval(sess, eval_correct, images_placeholder, labels_placeholder, data_set)
+                    print("\nRunning evaluation for {0}\n".format(FLAGS.eval_dir))
+
+                    num_examples, true_count = do_eval(sess, eval_correct, images_placeholder, labels_placeholder, data_set)
+                    precision = true_count / num_examples
+                    print('Num examples: %d  Num correct: %d  Precision @ 1: %0.04f\n' %
+                                (num_examples, true_count, precision)) 
+
+                    # Create confusion matrix
+                    confusion_matrix = create_confusion_matrix(sess, prediction, 
+                        images_placeholder, labels_placeholder, data_set, FLAGS.num_classes)
+                    print("{0}".format(confusion_matrix))
 
                 finally:
                     print("\nWaiting for all threads...")

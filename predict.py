@@ -3,23 +3,13 @@
 import traceback
 import tensorflow as tf
 
+import hyperparameter
 import data_input
 import model
 import utils
 
 
-#
-# Hyperparameters for predictions
-#
-flags = tf.app.flags
-FLAGS = flags.FLAGS
-
-flags.DEFINE_string('checkpoint', "log/mnist/model.ckpt-8001", 'Use this checkpoint file to restore the values')
-flags.DEFINE_integer('image_width', 28, 'x, y size of image.')
-flags.DEFINE_integer('image_height', 28, 'x, y size of image.')
-flags.DEFINE_boolean('is_jpeg', False, 'jpeg = True, png = False')   
-flags.DEFINE_integer('num_classes', 10, 'Number of classes to predict')   
-
+FLAGS = hyperparameter.FLAGS
 images_to_predict = ["/home/david/Pictures/test1.png",
                      "/home/david/Pictures/test2.png",
                      "/home/david/Pictures/test3.png",

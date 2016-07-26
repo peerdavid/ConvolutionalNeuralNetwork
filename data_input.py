@@ -128,11 +128,14 @@ def _create_batches(image_list, label_list, FLAGS, batch_size = None):
     data_set = DataSet()
     data_set.size = len(image_list)
     data_set.batch_size = batch_size
+    data_set.image_list = image_list
+    data_set.label_list = label_list
 
     tf_images = ops.convert_to_tensor(image_list, dtype=dtypes.string)
     tf_labels = ops.convert_to_tensor(label_list, dtype=dtypes.int32)
 
     input_queue = tf.train.slice_input_producer([tf_images, tf_labels], shuffle=False)
     images_disk, lables_disk = _read_images_from_disk(input_queue, FLAGS)
-    data_set.images, data_set.labels = tf.train.batch([images_disk, lables_disk], batch_size=data_set.batch_size)
+    data_set.images, data_set.labels = tf.train.batch([images_disk, lables_disk], 
+            batch_size=data_set.batch_size, num_threads=10)
     return data_set
