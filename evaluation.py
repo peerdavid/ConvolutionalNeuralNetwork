@@ -10,6 +10,8 @@ import data_input
 import model
 
 
+# https://github.com/tensorflow/tensorflow/blob/master/tensorflow/g3doc/api_docs/python/contrib.metrics.md
+
 FLAGS = hyperparameter.FLAGS
 
 def do_eval(sess, eval_correct, images_placeholder, labels_placeholder, data_set):
@@ -17,6 +19,7 @@ def do_eval(sess, eval_correct, images_placeholder, labels_placeholder, data_set
     true_count = 0  # Counts the number of correct predictions.
     steps_per_epoch = data_set.size // data_set.batch_size
     num_examples = steps_per_epoch * data_set.batch_size
+    
     for step in xrange(steps_per_epoch):
         feed_dict = utils.create_feed_data(sess, images_placeholder, labels_placeholder, data_set)
         true_count += sess.run(eval_correct, feed_dict=feed_dict)
