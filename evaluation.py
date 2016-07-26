@@ -4,7 +4,7 @@ import traceback
 from six.moves import xrange
 import tensorflow as tf
 
-import hyperparameter
+import params
 import utils
 import data_input
 import model
@@ -12,7 +12,7 @@ import model
 
 # https://github.com/tensorflow/tensorflow/blob/master/tensorflow/g3doc/api_docs/python/contrib.metrics.md
 
-FLAGS = hyperparameter.FLAGS
+FLAGS = params.FLAGS
 
 def do_eval(sess, eval_correct, images_placeholder, labels_placeholder, data_set):
     # Run evaluation against all images

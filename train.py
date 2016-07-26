@@ -38,14 +38,14 @@ from six.moves import xrange
 
 import tensorflow as tf
 
-import hyperparameter
+import params
 import data_input
 import model
 import evaluation
 import utils
 
 
-FLAGS = hyperparameter.FLAGS
+FLAGS = params.FLAGS
 
 
 #

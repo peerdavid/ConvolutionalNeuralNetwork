@@ -3,13 +3,13 @@
 import traceback
 import tensorflow as tf
 
-import hyperparameter
+import params
 import data_input
 import model
 import utils
 
 
-FLAGS = hyperparameter.FLAGS
+FLAGS = params.FLAGS
 images_to_predict = ["/home/david/Pictures/test1.png",
                      "/home/david/Pictures/test2.png",
                      "/home/david/Pictures/test3.png",
