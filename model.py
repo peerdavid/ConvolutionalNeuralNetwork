@@ -37,7 +37,7 @@ def inference(images, batch_size, num_classes):
         # Visualize kernel of conv1
         grid_x = grid_y = 8   # to get a square grid for 64 conv1 features x*y
         grid = put_kernels_on_grid(kernel, grid_y, grid_x)
-        tf.image_summary("features", grid, max_images=1)
+        tf.image_summary("conv1/features", grid, max_images=1)
 
         conv = tf.nn.conv2d(images, kernel, [1, 1, 1, 1], padding='SAME')
         biases = _get_variable('biases', [64], tf.constant_initializer(0.0))

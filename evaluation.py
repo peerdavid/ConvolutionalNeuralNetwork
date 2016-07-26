@@ -89,10 +89,10 @@ def main(argv=None):
                     # Run evaluation
                     print("\nRunning evaluation for {0}\n".format(FLAGS.eval_dir))
 
-                    #num_examples, true_count = do_eval(sess, eval_correct, images_placeholder, labels_placeholder, data_set)
-                    #precision = true_count / num_examples
-                    #print('Num examples: %d  Num correct: %d  Precision @ 1: %0.04f\n' %
-                    #            (num_examples, true_count, precision)) 
+                    num_examples, true_count = do_eval(sess, eval_correct, images_placeholder, labels_placeholder, data_set)
+                    precision = true_count / num_examples
+                    print('Num examples: %d  Num correct: %d  Precision @ 1: %0.04f\n' %
+                                (num_examples, true_count, precision)) 
 
                     # Create confusion matrix
                     confusion_matrix = create_confusion_matrix(sess, prediction, 

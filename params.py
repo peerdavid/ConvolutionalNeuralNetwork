@@ -36,7 +36,7 @@ flags.DEFINE_float('moving_average_decay', 0.9999, 'The decay to use for the mov
 #
 # Evaluation and prediction
 #
-flags.DEFINE_string('checkpoint', "log/mnist/model.ckpt-8001", 'Use this checkpoint file to restore the values')
+flags.DEFINE_string('checkpoint', "log/mnist_with_weight_decay/model.ckpt-8001", 'Use this checkpoint file to restore the values')
 flags.DEFINE_integer('num_classes', 10, 'Number of classes to predict. Possible the eval data does not contain one class.')  
 
 

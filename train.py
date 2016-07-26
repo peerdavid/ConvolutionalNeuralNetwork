@@ -236,7 +236,7 @@ def main(argv=None):
             # Add to the Graph the Ops that calculate and apply gradients.
             global_step = tf.Variable(0, trainable=False)
 
-            if(optimizer.FLAGS == 0):
+            if(FLAGS.optimizer == 0):
                 print("Using gradient descent optimizer.")
                 train_op = _create_gradient_descent_train_op(train_loss, global_step, train_data_set.size)
             else:
