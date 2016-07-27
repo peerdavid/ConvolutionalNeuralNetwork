@@ -1,11 +1,10 @@
 # Convolutional Neural Networks
 This project trains and evaluates convolutional neural networks with tensorflow.
-Images (ong or jpeg) will be loaded from your local file system. To create your
-own training / evaluation set, datr (https://github.com/peerdavid/datr) can be used.
-Simply download images and put them into folders named 0, 1, ... for all different classes
-and set the folder in the params.py (FLAGS.img_dir) file. To train and predict cnn's you can 
-use the following components:
-
+Images (png or jpeg) will be loaded from your file system. To create your
+own training / evaluation set, the tool **datr** (https://github.com/peerdavid/datr) can be used.
+Simply download images with datr and put them into folders named 0, 1, ... for all different classes
+and set the folder in the params.py (FLAGS.img_dir) file. This images can be used, to train your
+cnn using the following components:
 
 ## params.py
 This file contains all flags which can be set such as learning_rate, img_dir, test_size etc.
@@ -57,23 +56,23 @@ Set the eval_dir and call python3 evaluation.py (Note: The structure of the dire
 The images used in eval_dir should not be contained in your training data. evaluation.py will calculate the accuracy
 and the confusion matrix. Example: <br>
 ```
-Restore session from checkpoint log/model.ckpt-4001                                                                  
-                                                                                                                                
-Running evaluation for data/                                                                                              
-                                                                                                                                
-Num examples: 60000  Num correct: 59523  Precision @ 1: 0.9920                                                                  
-                                                                                                                                
-[[5869    0    0    1    1    1    4    1    1    3]                                                                            
- [   5 6720    2    1   11    0    1   35    6    5]                                                                            
- [   7    5 5932   10    4    0    1   15    7    3]                                                                            
- [   2    1    6 6093    0   37    0   11    1    5]                                                                            
- [   0    4    1    0 5794    0    1   13    3   11]                                                                            
- [   1    2    0    3    0 5344    7    0    1    4]                                                                            
- [  18    1    0    0    7   11 5897    0    5    0]                                                                            
- [   0    5    7    3    3    0    0 6157    0   10]                                                                            
- [  17    4    7   17    3   25    7    8 5824   15]                                                                            
- [   3    0    3    3   20    3    0   25    3 5893]]                                                                           
-                                                                                                                                
+Restore session from checkpoint log/model.ckpt-4001              
+                                                                 
+Running evaluation for data/                                     
+                                                                 
+Num examples: 60000  Num correct: 59523  Precision @ 1: 0.9920   
+                                                                 
+[[5869    0    0    1    1    1    4    1    1    3]             
+ [   5 6720    2    1   11    0    1   35    6    5]             
+ [   7    5 5932   10    4    0    1   15    7    3]             
+ [   2    1    6 6093    0   37    0   11    1    5]             
+ [   0    4    1    0 5794    0    1   13    3   11]             
+ [   1    2    0    3    0 5344    7    0    1    4]             
+ [  18    1    0    0    7   11 5897    0    5    0]             
+ [   0    5    7    3    3    0    0 6157    0   10]             
+ [  17    4    7   17    3   25    7    8 5824   15]             
+ [   3    0    3    3   20    3    0   25    3 5893]]            
+                                                                 
 Waiting for all threads...               
 
 Done.
