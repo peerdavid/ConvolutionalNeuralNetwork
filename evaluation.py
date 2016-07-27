@@ -64,9 +64,14 @@ def main(argv=None):
             images_placeholder, labels_placeholder = utils.create_placeholder_inputs(data_set.batch_size, FLAGS.image_height, FLAGS.image_width)
             logits = model.inference(images_placeholder, data_set.batch_size, FLAGS.num_classes)
 
-            # Evaluation
+            # Accuracy
             correct = tf.nn.in_top_k(logits, labels_placeholder, 1)
-            eval_correct = tf.reduce_sum(tf.cast(correct, tf.int32))
+            eval_correct_k_1 = tf.reduce_sum(tf.cast(correct, tf.int32))
+
+            correct = tf.nn.in_top_k(logits, labels_placeholder, 2)
+            eval_correct_k_2 = tf.reduce_sum(tf.cast(correct, tf.int32))
+
+            # Prediction used for confusion matrix
             prediction = tf.argmax(logits,1)
 
             # Add the variable initializer Op.
@@ -89,9 +94,14 @@ def main(argv=None):
                     # Run evaluation
                     print("\nRunning evaluation for {0}\n".format(FLAGS.eval_dir))
 
-                    num_examples, true_count = do_eval(sess, eval_correct, images_placeholder, labels_placeholder, data_set)
+                    num_examples, true_count = do_eval(sess, eval_correct_k_1, images_placeholder, labels_placeholder, data_set)
                     precision = true_count / num_examples
-                    print('Num examples: %d  Num correct: %d  Precision @ 1: %0.04f\n' %
+                    print('Top-1-Accuracy | Num examples: %d  Num correct: %d  Precision @ 1: %0.04f' %
+                                (num_examples, true_count, precision)) 
+
+                    num_examples, true_count = do_eval(sess, eval_correct_k_2, images_placeholder, labels_placeholder, data_set)
+                    precision = true_count / num_examples
+                    print('Top-2-Accuracy | Num examples: %d  Num correct: %d  Precision @ 1: %0.04f\n' %
                                 (num_examples, true_count, precision)) 
 
                     # Create confusion matrix

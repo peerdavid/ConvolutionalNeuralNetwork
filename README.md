@@ -59,8 +59,10 @@ and the confusion matrix. Example: <br>
 Restore session from checkpoint log/model.ckpt-4001              
                                                                  
 Running evaluation for data/                                     
-                                                                 
-Num examples: 60000  Num correct: 59523  Precision @ 1: 0.9920   
+
+Top-1-Accuracy | Num examples: 60000  Num correct: 59523  Precision @ 1: 0.9920                                                                                                                                                                           
+Top-2-Accuracy | Num examples: 60000  Num correct: 59937  Precision @ 1: 0.9990                                                 
+
                                                                  
 [[5869    0    0    1    1    1    4    1    1    3]             
  [   5 6720    2    1   11    0    1   35    6    5]             
