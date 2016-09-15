@@ -216,14 +216,14 @@ def main(argv=None):
 
         # Tell TensorFlow that the model will be built into the default Graph.
         with tf.Graph().as_default():
-            data_sets = data_input.read_test_and_train_image_batches(FLAGS)
+            data_sets = data_input.read_evaluation_and_train_image_batches(FLAGS)
             train_data_set = data_sets.train
-            test_data_set = data_sets.test
+            evaluation_data_set = data_sets.evaluation
             
             images_placeholder, labels_placeholder = utils.create_placeholder_inputs(FLAGS.batch_size, FLAGS.image_height, FLAGS.image_width)
                     
             # Build a Graph that computes predictions from the inference model.
-            # We use the same weight's etc. for the training and testing
+            # We use the same weight's etc. for the training and evaluation
             logits = model.inference(images_placeholder, train_data_set.batch_size, train_data_set.num_classes)
                             
             # Accuracy
@@ -248,7 +248,7 @@ def main(argv=None):
 
             # Add tensorboard summaries
             tf.image_summary('image_train', train_data_set.images, max_images = 5)
-            tf.image_summary('image_test', test_data_set.images, max_images = 5)
+            tf.image_summary('image_evaluation', evaluation_data_set.images, max_images = 5)
 
             # Build the summary operation based on the TF collection of Summaries.
             summary_op = tf.merge_all_summaries()
@@ -308,12 +308,12 @@ def main(argv=None):
                             continue     
 
                         num_examples, true_count = evaluation.do_eval(sess, eval_correct, images_placeholder, 
-                                labels_placeholder, test_data_set)
+                                labels_placeholder, evaluation_data_set)
                         precision = true_count / num_examples
-                        print('  Test data | Num examples: %d  Num correct: %d  Precision @ 1: %0.04f' %
+                        print('  Evaluation data | Num examples: %d  Num correct: %d  Precision @ 1: %0.04f' %
                                 (num_examples, true_count, precision)) 
 
-                        summary = tf.Summary(value=[tf.Summary.Value(tag="accuracy_test", simple_value=precision)])
+                        summary = tf.Summary(value=[tf.Summary.Value(tag="accuracy_evaluation", simple_value=precision)])
                         summary_writer.add_summary(summary, step) 
                         
                         num_examples, true_count = evaluation.do_eval(sess, eval_correct, images_placeholder, labels_placeholder, train_data_set)

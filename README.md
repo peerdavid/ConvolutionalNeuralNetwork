@@ -7,14 +7,22 @@ and set the folder in the params.py (FLAGS.img_dir) file. This images can be use
 cnn using the following components:
 
 ## params.py
-This file contains all flags which can be set such as learning_rate, img_dir, test_size etc.
+This file contains all flags which can be set such as learning_rate, img_dir, evaluation_size etc.
 
 
 ## data_input.py
-Is responsible for loading training, testing, evaluation and images for predictions.
+Is responsible for loading training, evaluation and ing and images for predictions.
 Training, testing and evaluation data must be structured into the following folders:<br>
 ```
-img_dir
+img_dir_train
+   |--0
+   |  |-###.jpg
+   |  |-###.jpg
+   |
+   |--1
+   |  |-###.jpg
+
+img_dir_test
    |--0
    |  |-###.jpg
    |  |-###.jpg
@@ -31,7 +39,7 @@ Call python3 train.py to train your cnn (which is defined in model.py).
 With the FLAGS.optimizer flag you can define your favorite optimizer.
 After 10 steps, a console log will output the current loss value, after 100 steps
 general values for tensorboard are written into the log_dir. After 1000 steps 
-the training and testing (testing data will only be used for evaluation during training) accuracy
+the training and evaluation (evaluation data will only be used for evaluation, never for training) accuracy
 will be calculated and written into tensorboard. After 2000 steps a checkpoint file will be written
 into the log_dir. This files will be used by evaluation.py and predict.py
 <br><br>

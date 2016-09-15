@@ -25,7 +25,7 @@ def read_image_batches_with_labels_from_path(path, FLAGS):
     return data_set
 
 
-def read_test_and_train_image_batches(FLAGS):
+def read_evaluation_and_train_image_batches(FLAGS):
     print("\nReading input images from {0}".format(FLAGS.img_dir))
     print("-----------------------------")
        
@@ -33,34 +33,34 @@ def read_test_and_train_image_batches(FLAGS):
     image_list, label_list, num_classes = read_labeled_image_list(FLAGS.img_dir)
     image_list, label_list = _shuffle_tow_arrays_together(image_list, label_list)   
     
-    # Split into training and testing sets
-    train_images = image_list[FLAGS.test_size:]
-    train_labels = label_list[FLAGS.test_size:]
-    test_images = image_list[:FLAGS.test_size]
-    test_labels = label_list[:FLAGS.test_size]
+    # Split into training and ing sets
+    train_images = image_list[FLAGS.evaluation_size:]
+    train_labels = label_list[FLAGS.evaluation_size:]
+    evaluation_images = image_list[:FLAGS.evaluation_size]
+    evaluation_labels = label_list[:FLAGS.evaluation_size]
 
-    assert all(test_image not in train_images for test_image in test_images), "Some images are contained in both, testing- and training-set." 
+    assert all(evaluation_image not in train_images for evaluation_image in evaluation_images), "Some images are contained in both, evaluation- and training-set." 
     assert len(train_images) == len(train_labels), "Length of train image list and train label list is different"
-    assert len(test_images) == len(test_labels), "Length of test image list and train label list is different"
+    assert len(evaluation_images) == len(evaluation_labels), "Length of evaluation image list and train label list is different"
 
     # Create image and label batches
     train_data_set = _create_batches(train_images, train_labels, FLAGS)
-    test_data_set = _create_batches(test_images, test_labels, FLAGS)
+    evaluation_data_set = _create_batches(evaluation_images, evaluation_labels, FLAGS)
     train_data_set.num_classes = num_classes
-    test_data_set.num_classes = num_classes
+    evaluation_data_set.num_classes = num_classes
 
     print("Num of classes: {0}".format(num_classes))
     print("Num of training images: {0}".format(train_data_set.size))
-    print("Num of testing images: {0}".format(test_data_set.size))
+    print("Num of evaluation images: {0}".format(evaluation_data_set.size))
     print("Batch size: {0}".format(train_data_set.batch_size))
     print("-----------------------------\n")
 
-    assert test_data_set.size == FLAGS.test_size, "Number of testing images is too big."
-    assert test_data_set.size < train_data_set.size, "More testing images than training images."
+    assert evaluation_data_set.size == FLAGS.evaluation_size, "Number of evaluation images is too big."
+    assert evaluation_data_set.size < train_data_set.size, "More evaluation images than training images."
 
     data_sets = DataSet()
     data_sets.train = train_data_set
-    data_sets.test = test_data_set
+    data_sets.evaluation = evaluation_data_set
 
     return data_sets                  
 
