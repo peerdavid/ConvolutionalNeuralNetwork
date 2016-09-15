@@ -9,7 +9,7 @@ FLAGS = flags.FLAGS
 #
 # General parameter
 #
-flags.DEFINE_string('log_dir', 'log/schulung/', 'Directory to put the log data = Output.')
+flags.DEFINE_string('log_dir', 'log/current/', 'Directory to put the log data = Output.')
 flags.DEFINE_string('img_dir', 'data/mnist_train/', 'Directory of images = Input.')
 flags.DEFINE_integer('image_width', 28, 'Width in pixels of image.')
 flags.DEFINE_integer('image_height', 28, 'Height in pixels of image.')

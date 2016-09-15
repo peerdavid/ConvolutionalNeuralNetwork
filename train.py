@@ -288,12 +288,14 @@ def main(argv=None):
 
                     # Print step loss etc. to console
                     if step % 10 == 0:
+                        steps_per_epoch = train_data_set.size // train_data_set.batch_size
+                        epoch = int(step / steps_per_epoch)
                         num_examples_per_step = train_data_set.batch_size
                         examples_per_sec = num_examples_per_step / duration
                         sec_per_batch = float(duration)
 
-                        print ('%s: step %d, loss = %.6f (%.1f examples/sec; %.3f '
-                                    'sec/batch)' % (datetime.now(), step, loss_value,
+                        print ('%s: step %d, epoch %d | loss = %.6f | %.1f examples/sec; %.3f '
+                                    'sec/batch' % (datetime.now(), step, epoch, loss_value,
                                     examples_per_sec, sec_per_batch))
                     
                     # Write summary to tensorboard
