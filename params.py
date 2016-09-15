@@ -9,7 +9,7 @@ FLAGS = flags.FLAGS
 #
 # General parameter
 #
-flags.DEFINE_string('log_dir', 'log/current/', 'Directory to put the log data = Output.')
+flags.DEFINE_string('log_dir', 'log/schulung/', 'Directory to put the log data = Output.')
 flags.DEFINE_string('img_dir', 'data/mnist_train/', 'Directory of images = Input.')
 flags.DEFINE_integer('image_width', 28, 'Width in pixels of image.')
 flags.DEFINE_integer('image_height', 28, 'Height in pixels of image.')
@@ -36,7 +36,7 @@ flags.DEFINE_float('moving_average_decay', 0.9999, 'The decay to use for the mov
 #
 # Evaluation and prediction
 #
-flags.DEFINE_string('checkpoint', "log/current/model.ckpt-2001", 'Use this checkpoint file to restore the values')
+flags.DEFINE_string('checkpoint', "log/schulung/model.ckpt-2001", 'Use this checkpoint file to restore the values')
 flags.DEFINE_integer('num_classes', 10, 'Number of classes to predict. Possible the eval data does not contain one class.')  
 
 

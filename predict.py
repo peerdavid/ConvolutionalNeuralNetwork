@@ -10,10 +10,7 @@ import utils
 
 
 FLAGS = params.FLAGS
-images_to_predict = ["/home/david/Pictures/test1.png",
-                     "/home/david/Pictures/test2.png",
-                     "/home/david/Pictures/test3.png",
-                     "/home/david/Pictures/test4.png"]
+images_to_predict = ["/home/david/Pictures/test.png"]
 
 #
 # M A I N
@@ -51,8 +48,7 @@ def main(argv=None):
 
                     # Predict
                     feed_dict = utils.create_feed_data(sess, images_placeholder, labels_placeholder, data_set)
-                    predictions = sess.run(prediction, feed_dict=feed_dict)
-                    classes = sess.run(logits, feed_dict=feed_dict)
+                    predictions, classes = sess.run([prediction, logits], feed_dict=feed_dict)
                     
                     # Print results
                     for i in range(0, data_set.size):

@@ -79,14 +79,14 @@ def inference(images, batch_size, num_classes):
     # (Conv -> Pool) * N
     #
     # Input is 28x28x3 
-    conv1 = conv_layer(name='conv1', input=images, shape=[5, 5, 3, 32], 
-        weight_decay=0.04, stride=[1, 1, 1, 1], visualize=(8, 4))
-
+    conv1 = conv_layer(name='conv1', input=images, shape=[5, 5, 3, 64], 
+        weight_decay=0.04, stride=[1, 1, 1, 1], visualize=(8, 8))
+        
     # Input is 28x28x64
     max_pool1 = max_pool_2x2('max_pool1', conv1)
 
     # Input is 14x14x64
-    conv2 = conv_layer(name='conv2', input=max_pool1, shape=[5, 5, 32, 64], 
+    conv2 = conv_layer(name='conv2', input=max_pool1, shape=[5, 5, 64, 64], 
         weight_decay=0.0, stride=[1, 1, 1, 1])
 
     # Input is 14x14x64
@@ -101,7 +101,7 @@ def inference(images, batch_size, num_classes):
     fc3 = fully_connected('fc3', reshape, [dim, 392], weight_decay=0.0)
     fc4 = fully_connected('fc4', fc3, [392, 98], weight_decay=0.0)
 
-    # Softmax -> sum of vector is 1
+    # softmax, i.e. softmax(WX + b)
     softmax_linear = softmax('softmax_linear', fc4, [98, num_classes])
 
     return softmax_linear
