@@ -66,26 +66,23 @@ and the confusion matrix. Example: <br>
 ```
 Restore session from checkpoint log/model.ckpt-4001              
                                                                  
-Running evaluation for data/                                     
+Running evaluation for data/mnist_test/
 
-Top-1-Accuracy | Num examples: 60000  Num correct: 59523  Precision @ 1: 0.9920                                                                                                                                                                           
-Top-2-Accuracy | Num examples: 60000  Num correct: 59937  Precision @ 1: 0.9990                                                 
+Top-1-Accuracy | Num examples: 10000  Num correct: 9793  Precision @ 1: 0.9793
+Top-2-Accuracy | Num examples: 10000  Num correct: 9956  Precision @ 1: 0.9956
 
-                                                                 
-[[5869    0    0    1    1    1    4    1    1    3]             
- [   5 6720    2    1   11    0    1   35    6    5]             
- [   7    5 5932   10    4    0    1   15    7    3]             
- [   2    1    6 6093    0   37    0   11    1    5]             
- [   0    4    1    0 5794    0    1   13    3   11]             
- [   1    2    0    3    0 5344    7    0    1    4]             
- [  18    1    0    0    7   11 5897    0    5    0]             
- [   0    5    7    3    3    0    0 6157    0   10]             
- [  17    4    7   17    3   25    7    8 5824   15]             
- [   3    0    3    3   20    3    0   25    3 5893]]            
-                                                                 
-Waiting for all threads...               
-
-Done.
+[[ 976    0    0    0    0    1    7    0    2    0]
+ [   0 1133    4    1    0    0    5    3    1    1]
+ [   2    1 1023    3    1    0    0    6    6    1]
+ [   0    0    0 1002    0    8    0    0   25    2]
+ [   0    0    0    0  964    0    7    0    3    2]
+ [   1    0    0    1    0  881   20    1   27    3]
+ [   0    0    0    0    0    0  918    0    1    0]
+ [   0    1    5    2    1    0    0 1012    3    3]
+ [   1    0    0    0    0    0    1    0  887    0]
+ [   0    0    0    1   16    2    0    6   19  997]]
+ 
+ 
 ```
 
 ## predict.py
